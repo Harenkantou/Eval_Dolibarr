@@ -6,7 +6,7 @@ newapp/
 │   │   └── frontoffice/
 │   ├── views/
 │   │   ├── backoffice/
-│   │   │   ├── AuthView.vue
+│   │   │   ├── LoginView.vue  -> fait + fonctionnel
 │   │   │   ├── ImportView.vue
 │   │   │   ├── ResetView.vue
 │   │   │   └── DashboardView.vue
