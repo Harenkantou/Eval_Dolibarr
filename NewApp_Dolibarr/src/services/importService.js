@@ -4,6 +4,13 @@
 //   → On garde en mémoire les IDs Dolibarr créés
 //   → Si UNE erreur survient : rollback (suppression de tout)
 //   → Aucune donnée partielle n'est laissée dans Dolibarr
+//
+// Communication 100% via API Dolibarr :
+//   → POST /users              (créer employés)
+//   → POST /salaries           (créer salaires)
+//   → POST /documents/upload   (uploader images sur fiche user)
+//   → PUT  /users/{id}         (associer image comme photo de profil)
+//   → DELETE /users, /salaries, /documents  (rollback)
 // ─────────────────────────────────────────────────────────────
 import http from './http'
 import { parseCSV, transformEmployees, transformSalaries } from '@/utils/csvParser'
@@ -24,44 +31,6 @@ const readText = (file) => new Promise((resolve, reject) => {
   r.readAsText(file)
 })
 
-// Formate un timestamp Unix → "JJ/MM/AAAA" (pour les notes)
-/*const tsToDateStr = (ts) => {
-  if (!ts) return '?'
-  const d = new Date(ts * 1000)
-  return `${String(d.getDate()).padStart(2, '0')}/`
-       + `${String(d.getMonth() + 1).padStart(2, '0')}/`
-       + `${d.getFullYear()}`
-}
-
-// Construit la note privée listant les paiements
-const buildPaymentNote = (payments, totalPaye) => {
-  if (!payments.length) return 'Paiements : aucun — Total payé : 0€'
-  const detail = payments
-    .map(p => `${tsToDateStr(p.date_paye)} : ${p.amount}€`)
-    .join(' | ')
-  return `Paiements : ${detail} — Total payé : ${totalPaye}€`
-}*/
-
-// ═════════════════════════════════════════════════════════════
-// COMPTE BANCAIRE PAR DÉFAUT (pour les paiements de salaire)
-// ═════════════════════════════════════════════════════════════
-
-/*let cachedAccountId = null
-
-const getDefaultAccountId = async () => {
-  if (cachedAccountId) return cachedAccountId
-
-  const res      = await http.get('/bankaccounts', { params: { limit: 10 } })
-  const accounts = res.data || []
-
-  if (!accounts.length) {
-    throw new Error('Aucun compte bancaire configuré dans Dolibarr. Créez-en un dans Banques & Caisses.')
-  }
-
-  cachedAccountId = accounts[0].id
-  return cachedAccountId
-}*/
-
 // ═════════════════════════════════════════════════════════════
 // ROLLBACK — supprime les entités créées si une erreur survient
 // ═════════════════════════════════════════════════════════════
@@ -69,26 +38,26 @@ const getDefaultAccountId = async () => {
 const rollback = async (created) => {
   console.warn('[Rollback] Suppression des données partielles...')
 
-  // Ordre inverse de création : salaires d'abord, puis users
+  // Ordre inverse de création : salaires → documents → users
   for (const id of created.salaries) {
     try { await http.delete(`/salaries/${id}`) }
     catch (e) { console.error(`[Rollback] salaire ${id}:`, errMsg(e)) }
+  }
+  for (const path of created.documents) {
+    try {
+      await http.delete(`/documents`, {
+        params: { modulepart: 'user', original_file: path }
+      })
+    } catch (e) { console.error(`[Rollback] doc ${path}:`, errMsg(e)) }
   }
   for (const id of created.users) {
     try { await http.delete(`/users/${id}`) }
     catch (e) { console.error(`[Rollback] user ${id}:`, errMsg(e)) }
   }
-  for (const path of created.documents) {
-    try {
-      await http.delete(`/documents`, {
-        params: { modulepart: 'medias', original_file: path }
-      })
-    } catch (e) { console.error(`[Rollback] doc ${path}:`, errMsg(e)) }
-  }
 }
 
 // ═════════════════════════════════════════════════════════════
-// CRÉATION D'UN SALAIRE (fonction partagée)
+// CRÉATION D'UN SALAIRE
 // ═════════════════════════════════════════════════════════════
 
 const createSalary = async (sal, userId) => {
@@ -114,6 +83,35 @@ const createSalary = async (sal, userId) => {
   })
 
   return res.data.id || res.data
+}
+
+// ═════════════════════════════════════════════════════════════
+// UPLOAD D'UNE IMAGE + ASSOCIATION COMME PHOTO DE PROFIL
+// ═════════════════════════════════════════════════════════════
+
+const uploadImageForUser = async (filename, blob, userId) => {
+  // 1. Upload dans documents/users/{userId}/photos/ (sous-dossier photos)
+  const formData = new FormData()
+  formData.append('filename'         , filename)
+  formData.append('file'             , blob, filename)
+  formData.append('overwriteifexists', '1')
+  formData.append('modulepart'       , 'user')
+  formData.append('ref'              , String(userId))
+  formData.append('subdir'           , 'photos')   // ← sous-dossier photos pour l'avatar
+
+  await http.post('/documents/upload', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  })
+
+  // 2. Associer l'image comme photo de profil du user
+  try {
+    await http.put(`/users/${userId}`, { photo: filename })
+  } catch (e) {
+    console.warn(`[uploadImage] Impossible de définir photo pour user ${userId}:`, errMsg(e))
+  }
+
+  // Chemin retourné pour le rollback : "{userId}/photos/{filename}"
+  return `${userId}/photos/${filename}`
 }
 
 // ═════════════════════════════════════════════════════════════
@@ -218,13 +216,12 @@ export const importImages = async (zipFile, onProgress = null) => {
   const uploaded = []
 
   try {
-    // Récupérer la map ref_employe → id Dolibarr
     const usersMap = await getUsersMap()
 
     for (let i = 0; i < files.length; i++) {
       const [filename, file] = files[i]
 
-      // Extraire le ref_employe du nom de fichier ("3.png" → 3)
+      // "3.png" → ref_employe=3 → userId Dolibarr
       const refEmploye = parseInt(filename.split('.')[0])
       const userId     = usersMap[refEmploye]
 
@@ -233,19 +230,9 @@ export const importImages = async (zipFile, onProgress = null) => {
       }
 
       const blob = await file.async('blob')
+      const path = await uploadImageForUser(filename, blob, userId)
 
-      const formData = new FormData()
-      formData.append('filename'         , filename)
-      formData.append('file'             , blob, filename)
-      formData.append('overwriteifexists', '1')
-      formData.append('modulepart'       , 'medias')
-      formData.append('subdir'   , `image/users/${userId}`)   // ← lie le fichier au user
-
-      await http.post('/documents/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      })
-
-      uploaded.push(`image/users/${userId}/${filename}`)     // ← stocke le chemin complet pour le rollback
+      uploaded.push(path)
       if (onProgress) onProgress({ current: i + 1, total: files.length })
     }
 
@@ -323,17 +310,9 @@ export const importAll = async (empFile, salFile, zipFile, onProgress = null) =>
         }
 
         const blob = await file.async('blob')
-        const fd   = new FormData()
-        fd.append('filename'  , filename)
-        fd.append('file'      , blob, filename)
-        fd.append('overwriteifexists' , '1')
-        fd.append('modulepart'       , 'medias')
-        fd.append('subdir'           , `image/users/${userId}`)
+        const path = await uploadImageForUser(filename, blob, userId)
 
-        await http.post('/documents/upload', fd, {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        })
-        allCreated.documents.push(`image/users/${userId}/${filename}`)
+        allCreated.documents.push(path)
         if (onProgress) onProgress({ step: 'images', current: i + 1, total: files.length })
       }
     }
