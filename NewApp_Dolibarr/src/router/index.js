@@ -1,14 +1,18 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore }                   from '@/stores/auth'
 
-import LoginView       from '@/views/backoffice/LoginView.vue'
-import DashboardView   from '@/views/backoffice/DashboardView.vue'
-import ImportView      from '@/views/backoffice/ImportView.vue'
-import ResetView       from '@/views/backoffice/ResetView.vue'
-import SwitchSpaceView from '@/views/SwitchSpaceView.vue'
-import FrontofficeHome from '@/views/frontoffice/HomeView.vue'
-import SalarieList     from '@/views/frontoffice/SalarieList.vue'
-import SalariePay      from '@/views/frontoffice/SalariePay.vue'
+import LoginView         from '@/views/backoffice/LoginView.vue'
+import DashboardView     from '@/views/backoffice/DashboardView.vue'
+import ImportView        from '@/views/backoffice/ImportView.vue'
+import ResetView         from '@/views/backoffice/ResetView.vue'
+import JoursFeriesView   from '@/views/backoffice/JoursFeriesView.vue'
+import SwitchSpaceView   from '@/views/SwitchSpaceView.vue'
+import FrontofficeHome   from '@/views/frontoffice/HomeView.vue'
+import SalarieList       from '@/views/frontoffice/SalarieList.vue'
+import SalariePay        from '@/views/frontoffice/SalariePay.vue'
+import SalarieGenerate from '@/views/frontoffice/SalarieGenerate.vue'
+import SalarieListAll  from '@/views/frontoffice/SalarieListAll.vue'
+import SalarieDetail   from '@/views/frontoffice/SalarieDetail.vue'
 
 const routes = [
   {
@@ -36,9 +40,26 @@ const routes = [
     redirect : { name: 'frontoffice-salaries' }
   },
   {
-    path     : '/salaries/:id/pay',
+    path    : '/salaries/:id/pay',
     redirect: to => ({ name: 'frontoffice-salarie-pay', params: to.params })
   },
+
+  {
+  path     : '/frontoffice/salaries/generate',
+  name     : 'frontoffice-salaries-generate',
+  component: SalarieGenerate
+},
+{
+  path     : '/frontoffice/salaries/all',
+  name     : 'frontoffice-salaries-all',
+  component: SalarieListAll
+},
+{
+  path     : '/frontoffice/salaries/:id/detail',
+  name     : 'frontoffice-salarie-detail',
+  component: SalarieDetail
+},
+
   {
     path     : '/login',
     name     : 'login',
@@ -63,20 +84,15 @@ const routes = [
     meta     : { requiresAuth: true }
   },
   {
+    path     : '/backoffice/jours-feries',
+    name     : 'backoffice-jours-feries',
+    component: JoursFeriesView,
+    meta     : { requiresAuth: true }
+  },
+  {
     path    : '/',
     redirect: { name: 'select-space' }
   }
-
-  //FrontOffice
-  /*{
-  path: '/frontoffice',
-  redirect: '/salaries'
-  },
-
-  {
-    path: '/frontoffice/salaries',
-    name: 'SalariesList', import ('@/views/SalariesList.vue')
-  },*/
 ]
 
 const router = createRouter({
@@ -84,22 +100,17 @@ const router = createRouter({
   routes
 })
 
-// ✅ NOUVELLE façon — sans next()
 router.beforeEach((to) => {
   const auth               = useAuthStore()
   const seenSpaceSelection = localStorage.getItem('seenSpaceSelection') === 'true'
 
-  // Redirige vers select-space si pas encore vu
   if (!seenSpaceSelection && to.name !== 'select-space') {
     return { name: 'select-space' }
   }
 
-  // Redirige vers login si page protégée et non connecté
   if (to.meta.requiresAuth && !auth.isAuthenticated) {
     return { name: 'login', query: { redirect: to.fullPath } }
   }
-
-  // Laisse passer — pas besoin de next()
 })
 
 export default router

@@ -80,8 +80,10 @@ const normalizeEmployee = (u) => ({
   ref   : u.array_options?.options_ref_employe ?? null,
   name  : u.lastname || u.login || `#${u.id}`,
   login : u.login,
-  gender: u.gender,                                       // 'man' | 'woman' | null
-  hours : u.array_options?.options_heure_travail_semaine ?? null
+  gender: u.gender,     // 'man' | 'woman' | null
+  job:    u.job || null,                                       
+  hours : u.array_options?.options_heure_travail_semaine ?? null,
+  job   : u.job || u.array_options?.options_poste || null
 })
 
 /** Fiche /salaries → salaire « métier » (paiements décodés). */
@@ -190,6 +192,37 @@ export async function addPayment(salaryId, payment) {
   })
 
   return normalizeSalary({ ...s, label })
+}
+
+// ═════════════════════════════════════════════════════════════
+// GÉNÉRATION EN MASSE (J2 FrontOffice)
+// ═════════════════════════════════════════════════════════════
+
+/**
+ * Crée un salaire pour chaque userId de la liste.
+ * Séquentiel volontaire : évite de saturer l'API Dolibarr locale.
+ *
+ * @param {number[]} userIds
+ * @param {{ amount:number, dateStart:string, dateEnd:string }} params
+ * @returns {Promise<Array<{ userId, success, salaryId?, error? }>>}
+ */
+export async function bulkCreateSalary(userIds, { amount, dateStart, dateEnd }) {
+  const results = []
+  for (const id of userIds) {
+    try {
+      const salaryId = await createSalary({
+        fk_user: id, amount, dateStart, dateEnd
+      })
+      results.push({ userId: id, success: true, salaryId })
+    } catch (err) {
+      results.push({
+        userId: id,
+        success: false,
+        error: err.response?.data?.error?.message || err.message
+      })
+    }
+  }
+  return results
 }
 
 export default api

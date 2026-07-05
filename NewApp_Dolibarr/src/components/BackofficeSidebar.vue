@@ -14,7 +14,8 @@ const route = useRoute()
 const navItems = [
   { label: 'Dashboard', routeName: 'dashboard' },
   { label: 'Import', routeName: 'backoffice-import' },
-  { label: 'Reset', routeName: 'backoffice-reset' }
+  { label: 'Reset', routeName: 'backoffice-reset' },
+  { label: 'Jours Fériés', routeName: 'backoffice-jours-feries' }
 ]
 
 function toggleSidebar() {

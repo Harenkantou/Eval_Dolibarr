@@ -145,6 +145,7 @@ export const importEmployees = async (csvContent, onProgress = null) => {
         lastname     : emp.lastname,
         gender       : emp.gender,
         password     : emp.password,
+        job          : emp.job,
         array_options: emp.array_options
       })
 
@@ -268,6 +269,7 @@ export const importAll = async (empFile, salFile, zipFile, onProgress = null) =>
         lastname     : emp.lastname,
         gender       : emp.gender,
         password     : emp.password,
+        job          : emp.job,
         array_options: emp.array_options
       })
       allCreated.users.push(res.data.id || res.data)

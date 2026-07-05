@@ -14,6 +14,14 @@ function goToBackoffice() {
 function goToSalaries() {
   router.push({ name: 'frontoffice-salaries' })
 }
+
+function goToSalariesAll() {
+  router.push({ name: 'frontoffice-salaries-all' })
+}
+
+function goToSalariesGenerate() {
+  router.push({ name: 'frontoffice-salaries-generate' })
+}
 </script>
 
 <template>
@@ -52,17 +60,24 @@ function goToSalaries() {
       <h2>Accès rapide</h2>
       <div class="links-grid">
         <article class="quick-card">
-          <h3>Salariés</h3>
-          <p>Consultez la liste des salariés et ouvrez la page de paiement.</p>
+          <span class="card-icon">🔍</span>
+          <h3>Rechercher un salarié</h3>
+          <p>Liste avec recherche multi-critères, création et paiement d'un salaire.</p>
           <button class="inline-action" @click="goToSalaries">Ouvrir</button>
         </article>
+
         <article class="quick-card">
-          <h3>Support</h3>
-          <p>Obtenez de l’aide, consultez les ressources ou contactez le support.</p>
+          <span class="card-icon">📋</span>
+          <h3>Liste complète</h3>
+          <p>Consultez la fiche détaillée de chaque salarié : infos, historique et reste à payer.</p>
+          <button class="inline-action" @click="goToSalariesAll">Ouvrir</button>
         </article>
-        <article class="quick-card">
-          <h3>Modifications</h3>
-          <p>Revoyez les derniers changements avant de passer au BackOffice.</p>
+
+        <article class="quick-card highlight">
+          <span class="card-icon">⚡</span>
+          <h3>Générer salaires en masse</h3>
+          <p>Filtrez les salariés (poste, genre, heures) puis créez plusieurs salaires en une fois.</p>
+          <button class="inline-action alt" @click="goToSalariesGenerate">Ouvrir</button>
         </article>
       </div>
     </section>
@@ -127,15 +142,8 @@ function goToSalaries() {
   cursor: pointer;
 }
 
-.primary {
-  background: #2563eb;
-  color: white;
-}
-
-.secondary {
-  background: rgba(37, 99, 235, 0.08);
-  color: #1d4ed8;
-}
+.primary   { background: #2563eb; color: white; }
+.secondary { background: rgba(37, 99, 235, 0.08); color: #1d4ed8; }
 
 .hero-panel {
   display: grid;
@@ -164,10 +172,7 @@ function goToSalaries() {
   margin-bottom: 0.75rem;
 }
 
-.stat-card p {
-  margin: 0;
-  color: #64748b;
-}
+.stat-card p { margin: 0; color: #64748b; }
 
 .quick-links {
   max-width: 1100px;
@@ -190,18 +195,36 @@ function goToSalaries() {
   border-radius: 20px;
   background: white;
   border: 1px solid rgba(148, 163, 184, 0.18);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.quick-card .card-icon {
+  font-size: 2rem;
+  margin-bottom: 0.25rem;
 }
 
 .quick-card h3 {
-  margin: 0 0 0.75rem;
+  margin: 0;
   color: #0f172a;
 }
 
 .quick-card p {
   margin: 0;
   color: #475569;
-  line-height: 1.7;
+  line-height: 1.65;
+  flex: 1;
 }
+
+.quick-card.highlight {
+  background: linear-gradient(135deg, #2563eb, #10b981);
+  border-color: transparent;
+  color: white;
+}
+
+.quick-card.highlight h3,
+.quick-card.highlight p { color: white; }
 
 .inline-action {
   margin-top: 1rem;
@@ -212,12 +235,16 @@ function goToSalaries() {
   color: white;
   cursor: pointer;
   font-weight: 600;
+  align-self: flex-start;
+}
+
+.inline-action.alt {
+  background: white;
+  color: #2563eb;
 }
 
 @media (max-width: 960px) {
   .hero-panel,
-  .links-grid {
-    grid-template-columns: 1fr;
-  }
+  .links-grid { grid-template-columns: 1fr; }
 }
 </style>
