@@ -10,6 +10,10 @@ function goChangeSpace() {
 function goToBackoffice() {
   router.push({ name: 'login' })
 }
+
+function goToSalaries() {
+  router.push({ name: 'frontoffice-salaries' })
+}
 </script>
 
 <template>
@@ -26,6 +30,7 @@ function goToBackoffice() {
         <div class="hero-actions">
           <button class="primary" @click="goChangeSpace">Changer d’espace</button>
           <button class="secondary" @click="goToBackoffice">Aller au BackOffice</button>
+          <button class="secondary" @click="goToSalaries">Voir les salariés</button>
         </div>
       </div>
 
@@ -47,8 +52,9 @@ function goToBackoffice() {
       <h2>Accès rapide</h2>
       <div class="links-grid">
         <article class="quick-card">
-          <h3>Dashboard</h3>
-          <p>Visualisez les principales données opérationnelles.</p>
+          <h3>Salariés</h3>
+          <p>Consultez la liste des salariés et ouvrez la page de paiement.</p>
+          <button class="inline-action" @click="goToSalaries">Ouvrir</button>
         </article>
         <article class="quick-card">
           <h3>Support</h3>
@@ -195,6 +201,17 @@ function goToBackoffice() {
   margin: 0;
   color: #475569;
   line-height: 1.7;
+}
+
+.inline-action {
+  margin-top: 1rem;
+  border: none;
+  border-radius: 10px;
+  padding: 0.7rem 1rem;
+  background: #2563eb;
+  color: white;
+  cursor: pointer;
+  font-weight: 600;
 }
 
 @media (max-width: 960px) {

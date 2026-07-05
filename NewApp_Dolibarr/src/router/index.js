@@ -7,6 +7,8 @@ import ImportView      from '@/views/backoffice/ImportView.vue'
 import ResetView       from '@/views/backoffice/ResetView.vue'
 import SwitchSpaceView from '@/views/SwitchSpaceView.vue'
 import FrontofficeHome from '@/views/frontoffice/HomeView.vue'
+import SalarieList     from '@/views/frontoffice/SalarieList.vue'
+import SalariePay      from '@/views/frontoffice/SalariePay.vue'
 
 const routes = [
   {
@@ -18,6 +20,24 @@ const routes = [
     path     : '/frontoffice',
     name     : 'frontoffice-home',
     component: FrontofficeHome
+  },
+  {
+    path     : '/frontoffice/salaries',
+    name     : 'frontoffice-salaries',
+    component: SalarieList
+  },
+  {
+    path     : '/frontoffice/salaries/:id/pay',
+    name     : 'frontoffice-salarie-pay',
+    component: SalariePay
+  },
+  {
+    path     : '/salaries',
+    redirect : { name: 'frontoffice-salaries' }
+  },
+  {
+    path     : '/salaries/:id/pay',
+    redirect: to => ({ name: 'frontoffice-salarie-pay', params: to.params })
   },
   {
     path     : '/login',
@@ -46,6 +66,17 @@ const routes = [
     path    : '/',
     redirect: { name: 'select-space' }
   }
+
+  //FrontOffice
+  /*{
+  path: '/frontoffice',
+  redirect: '/salaries'
+  },
+
+  {
+    path: '/frontoffice/salaries',
+    name: 'SalariesList', import ('@/views/SalariesList.vue')
+  },*/
 ]
 
 const router = createRouter({
