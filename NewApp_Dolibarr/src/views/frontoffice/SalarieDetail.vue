@@ -65,6 +65,9 @@ onMounted(loadData)
     <header class="page-header">
       <button @click="goBack" class="btn-back">← Retour à la liste</button>
       <h1>Fiche salarié</h1>
+      <button @click="loadData" :disabled="loading" class="btn-refresh">
+        {{ loading ? '⏳ Chargement…' : '🔄 Actualiser' }}
+      </button>
       <button @click="goToPay" class="btn-pay-link">Créer / Payer un salaire →</button>
     </header>
 
@@ -205,6 +208,9 @@ onMounted(loadData)
 
 .btn-back { background: #f1f5f9; color: #475569; }
 .btn-back:hover { background: #e2e8f0; }
+.btn-refresh { background: #3b82f6; color: white; font-weight: 500; }
+.btn-refresh:hover:not(:disabled) { background: #2563eb; }
+.btn-refresh:disabled { opacity: 0.6; cursor: not-allowed; }
 .btn-pay-link { background: #10b981; color: white; font-weight: 500; }
 .btn-pay-link:hover { background: #059669; }
 

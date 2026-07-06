@@ -80,4 +80,11 @@ public class JourFerieController {
         }
         repository.deleteById(id);
     }
+
+    // ── DELETE ALL (reset) ────────────────────────────────
+    @DeleteMapping
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteAll() {
+        repository.deleteAll();
+    }
 }

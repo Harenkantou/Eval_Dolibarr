@@ -5,6 +5,7 @@
 // (fonction delete décommentée dans api_salaries.class.php)
 // ─────────────────────────────────────────────────────────────
 import http from './http'
+import { listJoursFeries, deleteAllJoursFeries } from '@/services/api/joursFeriesApi'
 
 const errMsg = (err) =>
   err.response?.data?.error?.message ||
@@ -156,8 +157,48 @@ export const resetDocuments = async (onProgress = null) => {
 }
 
 // ═════════════════════════════════════════════════════════════
+// RESET JOURS FÉRIÉS (SQLite via SpringBoot)
+// ═════════════════════════════════════════════════════════════
+
+
+import { listJoursFeries, deleteAllJoursFeries } from '@/services/api/joursFeriesApi'
+
+export const resetJoursFeries = async (onProgress = null) => {
+  let total = 0
+
+  try {
+    // Compter avant suppression (pour le rapport)
+    const list = await listJoursFeries()
+    total = list.length
+
+    if (onProgress) onProgress({ current: 0, total })
+
+    if (total === 0) {
+      return { success: true, total: 0, deleted: 0, errors: 0 }
+    }
+
+    await deleteAllJoursFeries()
+
+    if (onProgress) onProgress({ current: total, total })
+
+    return { success: true, total, deleted: total, errors: 0 }
+  } catch (e) {
+    console.error('[resetJoursFeries]', errMsg(e))
+    return {
+      success: false,
+      total,
+      deleted: 0,
+      errors : 1,
+      error  : errMsg(e)
+    }
+  }
+}
+
+// ═════════════════════════════════════════════════════════════
 // RESET TOUT (salaires d'abord, puis employés)
 // ═════════════════════════════════════════════════════════════
+
+
 
 export const resetAll = async (onProgress = null) => {
   const salaries = await resetSalaries(p =>
@@ -171,10 +212,16 @@ export const resetAll = async (onProgress = null) => {
     onProgress?.({ step: 'employees', ...p })
   )
 
+  const joursFeries = await resetJoursFeries(p =>
+    onProgress?.({ step: 'joursFeries', ...p })
+  )
+
+
   return {
     success: salaries.success && documents.success && employees.success,
     salaries,
     documents,
-    employees
+    employees,
+    joursFeries
   }
 }

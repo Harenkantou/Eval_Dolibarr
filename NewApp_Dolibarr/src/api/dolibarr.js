@@ -81,7 +81,6 @@ const normalizeEmployee = (u) => ({
   name  : u.lastname || u.login || `#${u.id}`,
   login : u.login,
   gender: u.gender,     // 'man' | 'woman' | null
-  job:    u.job || null,                                       
   hours : u.array_options?.options_heure_travail_semaine ?? null,
   job   : u.job || u.array_options?.options_poste || null
 })

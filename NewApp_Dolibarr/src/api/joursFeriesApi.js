@@ -50,4 +50,9 @@ export const deleteJourFerie = async (id) => {
   await springApi.delete(`${BASE}/${id}`)
 }
 
+/** DELETE /api/jours-feries → supprimer TOUS les jours fériés */
+export const deleteAllJoursFeries = async () => {
+  await springApi.delete(BASE)
+}
+
 export default springApi

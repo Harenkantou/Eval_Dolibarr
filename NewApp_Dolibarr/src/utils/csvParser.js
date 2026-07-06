@@ -146,13 +146,13 @@ export const transformEmployees = (rawRows) => {
     lastname : row.nom,
     password : row.mdp,
     gender   : row.genre === 'homme' ? 'man' : 'woman',
-    job      : row.poste || row.job || '',
+    job      : row.poste || null,
 
     // Champs extra (nécessite activation des extrafields dans Dolibarr)
     array_options: {
       options_ref_employe          : row.ref_employe,
       options_heure_travail_semaine: parseInt(row.heure_travail_semaine) || 35,
-      options_poste                : row.poste || row.job || ''
+      //options_poste                : row.poste || row.job || ''
     },
 
     // ── Référence locale (non envoyée à Dolibarr) ────────────

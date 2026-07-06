@@ -17,6 +17,7 @@
           <option value="all">💣 Tout (salaires + employés)</option>
           <option value="salaries">💰 Salaires uniquement</option>
           <option value="employees">👥 Employés uniquement</option>
+          <option value="joursFeries"> Jours Fériés uniquement</option>
         </select>
       </div>
 
@@ -76,6 +77,13 @@
             ({{ result.employees.errors }} erreur(s))
           </span>
         </li>
+        <li v-if="result.joursFeries">
+        📅 Jours fériés supprimés :
+        <strong>{{ result.joursFeries.deleted }}</strong>
+        <span v-if="result.joursFeries.errors > 0" class="err-count">
+          ({{ result.joursFeries.errors }} erreur(s))
+        </span>
+        </li>
       </ul>
 
       <!-- Résultat reset partiel -->
@@ -100,7 +108,8 @@ import { ref, reactive, computed } from 'vue'
 import {
   resetAll,
   resetSalaries,
-  resetEmployees
+  resetEmployees,
+  resetJoursFeries
 } from '@/services/resetService'
 
 // ── État ──────────────────────────────────────────────────────
@@ -114,7 +123,8 @@ const progress = reactive({ current: 0, total: 0, step: '' })
 const typeLabels = {
   all      : 'toutes les données',
   salaries : 'les salaires',
-  employees: 'les employés'
+  employees: 'les employés',
+  joursFeries: 'les jours fériés'
 }
 
 // ── Pourcentage ───────────────────────────────────────────────
@@ -128,7 +138,9 @@ const progressPct = computed(() =>
 const stepLabel = computed(() => {
   const labels = {
     salaries : '💰 Suppression des salaires...',
-    employees: '👥 Suppression des employés...'
+    employees: '👥 Suppression des employés...',
+    documents  : '🖼️ Suppression des images...',
+    joursFeries: '📅 Suppression des jours fériés...'
   }
   return labels[progress.step] || '⏳ Initialisation...'
 })
@@ -156,6 +168,8 @@ const handleReset = async () => {
       result.value = await resetAll(onProgress)
     } else if (resetType.value === 'salaries') {
       result.value = await resetSalaries(onProgress)
+    } else if (resetType.value === 'joursFeries') {
+      result.value = await resetJoursFeries(onProgress)
     } else {
       result.value = await resetEmployees(onProgress)
     }
