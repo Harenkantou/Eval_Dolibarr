@@ -41,19 +41,6 @@ function goToSalariesGenerate() {
           <button class="secondary" @click="goToSalaries">Voir les salariés</button>
         </div>
       </div>
-
-      <div class="hero-panel">
-        <div class="stat-card">
-          <span class="stat-label">Utilisateurs</span>
-          <strong>124</strong>
-          <p>Voir les interactions récentes et contacts importants.</p>
-        </div>
-        <div class="stat-card">
-          <span class="stat-label">Transactions</span>
-          <strong>87</strong>
-          <p>Suivre les fichiers importés et les opérations en cours.</p>
-        </div>
-      </div>
     </section>
 
     <section class="quick-links">

@@ -14,7 +14,7 @@
       <div class="field">
         <label>Que voulez-vous réinitialiser ?</label>
         <select v-model="resetType" :disabled="loading">
-          <option value="all">💣 Tout (salaires + employés)</option>
+          <option value="all">💣 Toutes les données </option>
           <option value="salaries">💰 Salaires uniquement</option>
           <option value="employees">👥 Employés uniquement</option>
           <option value="joursFeries"> Jours Fériés uniquement</option>

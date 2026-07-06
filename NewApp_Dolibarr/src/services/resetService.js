@@ -5,7 +5,7 @@
 // (fonction delete décommentée dans api_salaries.class.php)
 // ─────────────────────────────────────────────────────────────
 import http from './http'
-import { listJoursFeries, deleteAllJoursFeries } from '@/services/api/joursFeriesApi'
+import { listJoursFeries, deleteAllJoursFeries } from '@/api/joursFeriesApi'
 
 const errMsg = (err) =>
   err.response?.data?.error?.message ||
@@ -159,9 +159,6 @@ export const resetDocuments = async (onProgress = null) => {
 // ═════════════════════════════════════════════════════════════
 // RESET JOURS FÉRIÉS (SQLite via SpringBoot)
 // ═════════════════════════════════════════════════════════════
-
-
-import { listJoursFeries, deleteAllJoursFeries } from '@/services/api/joursFeriesApi'
 
 export const resetJoursFeries = async (onProgress = null) => {
   let total = 0
