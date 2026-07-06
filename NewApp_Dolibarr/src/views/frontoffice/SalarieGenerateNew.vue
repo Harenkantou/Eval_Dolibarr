@@ -1,0 +1,559 @@
+<script setup>
+import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { getEmployees, getSalaries, createSalary } from '@/api/dolibarr'
+import { listJoursFeries } from '@/api/joursFeriesApi'
+
+const router = useRouter()
+
+const employees   = ref([])
+const salaries    = ref([])
+const joursFeries = ref([])
+const loading     = ref(false)
+const error       = ref('')
+const success     = ref('')
+const lastRun     = ref(null)
+
+const now = new Date()
+
+// ── Filtres ───────────────────────────────────────────────────
+const filters = ref({
+  job     : '',
+  gender  : '',
+  hoursMin: '',
+  hoursMax: ''
+})
+
+// ── Formulaire génération ─────────────────────────────────────
+const form = ref({
+  month        : now.getMonth() + 1,
+  year         : now.getFullYear(),
+  dailyAmount  : '',
+  majorationPct: 50
+})
+
+const MONTHS = [
+  'Janvier','Février','Mars','Avril','Mai','Juin',
+  'Juillet','Août','Septembre','Octobre','Novembre','Décembre'
+]
+
+// ── Liste des postes distincts ────────────────────────────────
+const jobs = computed(() => {
+  const set = new Set()
+  for (const e of employees.value) if (e.job) set.add(e.job)
+  return [...set].sort()
+})
+
+// ── Application des filtres ───────────────────────────────────
+const filtered = computed(() => {
+  const min = filters.value.hoursMin === '' ? -Infinity : parseFloat(filters.value.hoursMin)
+  const max = filters.value.hoursMax === '' ?  Infinity : parseFloat(filters.value.hoursMax)
+  return employees.value.filter(e => {
+    if (filters.value.job    && e.job    !== filters.value.job)    return false
+    if (filters.value.gender && e.gender !== filters.value.gender) return false
+    const h = Number(e.hours) || 0
+    if (h < min || h > max) return false
+    return true
+  })
+})
+
+const genderLabel = (g) => (g === 'man' ? '👨 Homme' : g === 'woman' ? '👩 Femme' : '—')
+const money = (n) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(Number(n) || 0)
+const pad = (n) => String(n).padStart(2, '0')
+
+const daysInMonth = computed(() => new Date(form.value.year, form.value.month, 0).getDate())
+
+// ── Détection jour férié ──────────────────────────────────────
+function isHoliday(day, month, year) {
+  const mm = pad(month), dd = pad(day)
+  return joursFeries.value.some(jf => {
+    const [y, m, d] = jf.dateFerie.split('-')
+    if (jf.recurrent) return m === mm && d === dd
+    return y === String(year) && m === mm && d === dd
+  })
+}
+
+// ── Jours du mois déjà couverts par un salaire existant ───────
+function occupiedDays(userId) {
+  const set = new Set()
+  const y = form.value.year, m = form.value.month
+  for (const s of salaries.value) {
+    if (Number(s.fk_user) !== Number(userId) || !s.datesp || !s.dateep) continue
+    for (let d = new Date(s.datesp * 1000); d <= new Date(s.dateep * 1000); d.setDate(d.getDate() + 1)) {
+      if (d.getFullYear() === y && d.getMonth() + 1 === m) set.add(d.getDate())
+    }
+  }
+  return set
+}
+
+// ── Intervalles libres du mois ────────────────────────────────
+function freeIntervals(userId) {
+  const occ = occupiedDays(userId)
+  if (occ.size === 0) return []   // aucun salaire de référence ce mois-ci → on ne génère rien
+  const max = daysInMonth.value
+  const gaps = []
+  let start = null
+  for (let d = 1; d <= max; d++) {
+    if (!occ.has(d) && start === null) start = d
+    if ((occ.has(d) || d === max) && start !== null) {
+      const end = occ.has(d) ? d - 1 : d
+      gaps.push({ start, end })
+      start = null
+    }
+  }
+  return gaps
+}
+
+// ── Calcul montant intervalle (avec majoration jour férié) ────
+function computeInterval(interval) {
+  const daily = parseFloat(form.value.dailyAmount) || 0
+  const factor = 1 + (parseFloat(form.value.majorationPct) || 0) / 100
+  let total = 0, normal = 0, ferie = 0
+  for (let d = interval.start; d <= interval.end; d++) {
+    if (isHoliday(d, form.value.month, form.value.year)) { total += daily * factor; ferie++ }
+    else { total += daily; normal++ }
+  }
+  return { total: Math.round(total * 100) / 100, normal, ferie }
+}
+
+// ── Aperçu global (1 ligne = 1 intervalle = 1 montant) ────────
+const preview = computed(() => {
+  const rows = []
+  for (const e of filtered.value) {
+    for (const g of freeIntervals(e.id)) {
+      const c = computeInterval(g)
+      rows.push({ userId: e.id, name: e.name, start: g.start, end: g.end, ...c })
+    }
+  }
+  return rows
+})
+
+const previewTotal = computed(() =>
+  Math.round(preview.value.reduce((s, r) => s + r.total, 0) * 100) / 100
+)
+
+// ── Chargement ────────────────────────────────────────────────
+async function loadAll() {
+  loading.value = true
+  error.value   = ''
+  try {
+    const [emp, sal, jf] = await Promise.all([
+      getEmployees(), getSalaries(), listJoursFeries()
+    ])
+    employees.value   = emp
+    salaries.value    = sal
+    joursFeries.value = jf
+  } catch (e) {
+    error.value = 'Erreur chargement : ' + (e.message || 'inconnue')
+  } finally {
+    loading.value = false
+  }
+}
+
+function clearFilters() {
+  filters.value = { job: '', gender: '', hoursMin: '', hoursMax: '' }
+}
+
+async function handleGenerate() {
+  error.value = ''; success.value = ''; lastRun.value = null
+
+  if (!form.value.dailyAmount || parseFloat(form.value.dailyAmount) <= 0) {
+    error.value = 'Salaire journalier invalide.'; return
+  }
+  if (filtered.value.length === 0) {
+    error.value = 'Aucun salarié ne correspond aux filtres.'; return
+  }
+  if (preview.value.length === 0) {
+    error.value = 'Aucun intervalle libre à générer.'; return
+  }
+
+  const confirmed = confirm(
+    `Générer ${preview.value.length} ligne(s) — total ${money(previewTotal.value)} ?`
+  )
+  if (!confirmed) return
+
+  loading.value = true
+  const results = []
+  try {
+    for (const row of preview.value) {
+      const dateStart = `${form.value.year}-${pad(form.value.month)}-${pad(row.start)}`
+      const dateEnd   = `${form.value.year}-${pad(form.value.month)}-${pad(row.end)}`
+      try {
+        const salaryId = await createSalary({
+          fk_user  : row.userId,
+          amount   : row.total,
+          dateStart, dateEnd
+        })
+        results.push({ ...row, success: true, salaryId })
+      } catch (err) {
+        results.push({
+          ...row,
+          success: false,
+          error  : err.response?.data?.error?.message || err.message
+        })
+      }
+    }
+    const ok = results.filter(r => r.success).length
+    const ko = results.length - ok
+    lastRun.value = { ok, ko, results }
+
+    if (ko === 0) {
+      success.value = `${ok} salaire(s) généré(s) avec succès.`
+      form.value.dailyAmount = ''
+    } else {
+      error.value = `${ok} succès, ${ko} échec(s). Voir le détail ci-dessous.`
+    }
+    await loadAll()  // rafraîchir occupations
+  } catch (e) {
+    error.value = 'Erreur globale : ' + (e.message || 'inconnue')
+  } finally {
+    loading.value = false
+  }
+}
+
+function goBack() {
+  router.push({ name: 'frontoffice-home' })
+}
+
+onMounted(loadAll)
+</script>
+
+<template>
+  <div class="salarie-generate">
+    <header class="page-header">
+      <button @click="goBack" class="btn-back">← Retour</button>
+      <h1>Générer par mois (avec jours fériés)</h1>
+    </header>
+
+    <!-- ── Filtres ───────────────────────────────────────── -->
+    <section class="card">
+      <h2>Filtres de sélection</h2>
+      <div class="filter-grid">
+        <div class="form-group">
+          <label>Poste</label>
+          <select v-model="filters.job">
+            <option value="">Tous</option>
+            <option v-for="j in jobs" :key="j" :value="j">{{ j }}</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Genre</label>
+          <select v-model="filters.gender">
+            <option value="">Tous</option>
+            <option value="man">Homme</option>
+            <option value="woman">Femme</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Heures min / semaine</label>
+          <input type="number" min="0" v-model="filters.hoursMin" placeholder="Ex: 20" />
+        </div>
+
+        <div class="form-group">
+          <label>Heures max / semaine</label>
+          <input type="number" min="0" v-model="filters.hoursMax" placeholder="Ex: 40" />
+        </div>
+
+        <button @click="clearFilters" class="btn-clear">Réinitialiser</button>
+      </div>
+    </section>
+
+    <!-- ── Aperçu salariés ──────────────────────────────── -->
+    <section class="card">
+      <div class="preview-header">
+        <h2>Salariés sélectionnés</h2>
+        <span class="counter">{{ filtered.length }} / {{ employees.length }}</span>
+      </div>
+
+      <div v-if="loading && employees.length === 0" class="loading">Chargement…</div>
+
+      <table v-else-if="filtered.length" class="data-table">
+        <thead>
+          <tr>
+            <th>Réf.</th>
+            <th>Nom</th>
+            <th>Poste</th>
+            <th>Genre</th>
+            <th>Heures/sem.</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="e in filtered" :key="e.id">
+            <td>{{ e.ref ?? '-' }}</td>
+            <td class="name-cell">{{ e.name }}</td>
+            <td>{{ e.job || '-' }}</td>
+            <td>{{ genderLabel(e.gender) }}</td>
+            <td>{{ e.hours ?? '-' }}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div v-else class="empty">Aucun salarié ne correspond aux filtres.</div>
+    </section>
+
+    <!-- ── Paramètres génération ────────────────────────── -->
+    <section class="card">
+      <h2>Paramètres du salaire à générer</h2>
+
+      <form @submit.prevent="handleGenerate" class="gen-form">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Mois</label>
+            <select v-model.number="form.month" required>
+              <option v-for="(m, i) in MONTHS" :key="i" :value="i + 1">{{ m }}</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Année</label>
+            <input type="number" min="2000" max="2100" v-model.number="form.year" required />
+          </div>
+          <div class="form-group">
+            <label>Salaire / jour (€)</label>
+            <input type="number" step="0.01" min="0.01"
+                   v-model="form.dailyAmount" placeholder="Ex: 50" required />
+          </div>
+          <div class="form-group">
+            <label>Majoration jour férié (%)</label>
+            <input type="number" step="1" min="0" v-model.number="form.majorationPct" />
+          </div>
+        </div>
+
+        <!-- ── Aperçu des lignes à générer ────────────────── -->
+        <div v-if="preview.length" class="run-result">
+          <h3>Aperçu ({{ preview.length }} ligne(s) — total {{ money(previewTotal) }})</h3>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Salarié</th>
+                <th>Intervalle</th>
+                <th>Jours normaux</th>
+                <th>Jours fériés</th>
+                <th>Montant</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(r, i) in preview" :key="i">
+                <td class="name-cell">{{ r.name }}</td>
+                <td>{{ pad(r.start) }}/{{ pad(form.month) }} → {{ pad(r.end) }}/{{ pad(form.month) }}/{{ form.year }}</td>
+                <td>{{ r.normal }}</td>
+                <td>{{ r.ferie }}</td>
+                <td>{{ money(r.total) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div v-else-if="filtered.length" class="empty">
+          Aucun intervalle libre à générer (tous les jours du mois sont déjà couverts).
+        </div>
+
+        <div class="form-actions">
+          <button type="submit"
+                  :disabled="loading || preview.length === 0"
+                  class="btn-generate">
+            {{ loading ? 'Génération…' : `Générer ${preview.length} ligne(s)` }}
+          </button>
+        </div>
+      </form>
+
+      <div v-if="error"   class="alert error">{{ error }}</div>
+      <div v-if="success" class="alert success">{{ success }}</div>
+
+      <!-- ── Résultat détaillé ────────────────────────────── -->
+      <div v-if="lastRun" class="run-result">
+        <h3>Résultat</h3>
+        <p><strong>{{ lastRun.ok }}</strong> succès · <strong>{{ lastRun.ko }}</strong> échec(s)</p>
+        <details v-if="lastRun.ko > 0">
+          <summary>Voir les échecs</summary>
+          <ul>
+            <li v-for="(r, i) in lastRun.results.filter(x => !x.success)" :key="i">
+              {{ r.name }} ({{ pad(r.start) }} → {{ pad(r.end) }}) : {{ r.error }}
+            </li>
+          </ul>
+        </details>
+      </div>
+    </section>
+  </div>
+</template>
+
+<style scoped>
+.salarie-generate {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.page-header h1 {
+  margin: 0;
+  font-size: 1.5rem;
+  color: #1e293b;
+}
+
+.btn-back {
+  padding: 0.5rem 1rem;
+  background: #f1f5f9;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  color: #475569;
+}
+.btn-back:hover { background: #e2e8f0; }
+
+.card {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  margin-bottom: 1.5rem;
+}
+
+.card h2 {
+  margin: 0 0 1rem;
+  font-size: 1.05rem;
+  color: #1e293b;
+}
+
+.filter-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr) auto;
+  gap: 1rem;
+  align-items: end;
+}
+
+.form-group { display: flex; flex-direction: column; gap: 0.375rem; }
+
+.form-group label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #64748b;
+  text-transform: uppercase;
+}
+
+.form-group input,
+.form-group select {
+  padding: 0.625rem 0.75rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 0.875rem;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.btn-clear {
+  padding: 0.625rem 1rem;
+  background: #e2e8f0;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  color: #475569;
+  font-size: 0.875rem;
+}
+.btn-clear:hover { background: #cbd5e1; }
+
+.preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+.preview-header h2 { margin: 0; }
+
+.counter {
+  padding: 0.25rem 0.75rem;
+  background: #dbeafe;
+  color: #1e40af;
+  border-radius: 9999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.data-table th,
+.data-table td {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.data-table th {
+  background: #f8fafc;
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.name-cell { font-weight: 500; color: #1e293b; }
+
+.loading, .empty {
+  padding: 2rem;
+  text-align: center;
+  color: #64748b;
+}
+
+.gen-form { display: flex; flex-direction: column; gap: 1rem; }
+
+.form-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.btn-generate {
+  padding: 0.75rem 1.75rem;
+  background: #10b981;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.btn-generate:hover:not(:disabled) { background: #059669; }
+.btn-generate:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.alert {
+  margin-top: 1rem;
+  padding: 0.75rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+}
+.alert.success { background: #dcfce7; color: #16a34a; }
+.alert.error   { background: #fee2e2; color: #dc2626; }
+
+.run-result {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: #f8fafc;
+  border-radius: 6px;
+}
+.run-result h3 { margin: 0 0 0.5rem; font-size: 0.95rem; }
+.run-result ul { margin: 0.5rem 0 0 1rem; }
+
+@media (max-width: 900px) {
+  .filter-grid, .form-row { grid-template-columns: 1fr; }
+}
+</style>

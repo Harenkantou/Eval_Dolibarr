@@ -22,6 +22,10 @@ function goToSalariesAll() {
 function goToSalariesGenerate() {
   router.push({ name: 'frontoffice-salaries-generate' })
 }
+
+function goToSalariesGenerateMonthly() {
+  router.push({ name: 'frontoffice-salaries-generate-monthly' })
+}
 </script>
 
 <template>
@@ -65,6 +69,13 @@ function goToSalariesGenerate() {
           <h3>Générer salaires en masse</h3>
           <p>Filtrez les salariés (poste, genre, heures) puis créez plusieurs salaires en une fois.</p>
           <button class="inline-action alt" @click="goToSalariesGenerate">Ouvrir</button>
+        </article>
+
+        <article class="quick-card highlight">
+          <span class="card-icon">📅</span>
+          <h3>Générer par mois (jours fériés)</h3>
+          <p>Générez les salaires des jours non couverts d'un mois, avec majoration des jours fériés.</p>
+          <button class="inline-action alt" @click="goToSalariesGenerateMonthly">Ouvrir</button>
         </article>
       </div>
     </section>
