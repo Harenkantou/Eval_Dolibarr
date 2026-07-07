@@ -1,8 +1,11 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { getEmployees, getSalaries, createSalary } from '@/api/dolibarr'
+import { getEmployees, getSalaries, runSalaryGeneration } from '@/api/dolibarr'
 import { listJoursFeries } from '@/api/joursFeriesApi'
+import { buildPreview, previewTotal as sumPreview } from '@/services/salaryGenerationService'
+import { distinctJobs, filterEmployees } from '@/services/employeeService'
+import { money, pad, genderLabel } from '@/services/formatService'
 
 const router = useRouter()
 
@@ -37,100 +40,23 @@ const MONTHS = [
   'Juillet','Août','Septembre','Octobre','Novembre','Décembre'
 ]
 
-// ── Liste des postes distincts ────────────────────────────────
-const jobs = computed(() => {
-  const set = new Set()
-  for (const e of employees.value) if (e.job) set.add(e.job)
-  return [...set].sort()
-})
-
-// ── Application des filtres ───────────────────────────────────
-const filtered = computed(() => {
-  const min = filters.value.hoursMin === '' ? -Infinity : parseFloat(filters.value.hoursMin)
-  const max = filters.value.hoursMax === '' ?  Infinity : parseFloat(filters.value.hoursMax)
-  return employees.value.filter(e => {
-    if (filters.value.job    && e.job    !== filters.value.job)    return false
-    if (filters.value.gender && e.gender !== filters.value.gender) return false
-    const h = Number(e.hours) || 0
-    if (h < min || h > max) return false
-    return true
-  })
-})
-
-const genderLabel = (g) => (g === 'man' ? '👨 Homme' : g === 'woman' ? '👩 Femme' : '—')
-const money = (n) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(Number(n) || 0)
-const pad = (n) => String(n).padStart(2, '0')
-
-const daysInMonth = computed(() => new Date(form.value.year, form.value.month, 0).getDate())
-
-// ── Détection jour férié ──────────────────────────────────────
-function isHoliday(day, month, year) {
-  const mm = pad(month), dd = pad(day)
-  return joursFeries.value.some(jf => {
-    const [y, m, d] = jf.dateFerie.split('-')
-    if (jf.recurrent) return m === mm && d === dd
-    return y === String(year) && m === mm && d === dd
-  })
-}
-
-// ── Jours du mois déjà couverts par un salaire existant ───────
-function occupiedDays(userId) {
-  const set = new Set()
-  const y = form.value.year, m = form.value.month
-  for (const s of salaries.value) {
-    if (Number(s.fk_user) !== Number(userId) || !s.datesp || !s.dateep) continue
-    for (let d = new Date(s.datesp * 1000); d <= new Date(s.dateep * 1000); d.setDate(d.getDate() + 1)) {
-      if (d.getFullYear() === y && d.getMonth() + 1 === m) set.add(d.getDate())
-    }
-  }
-  return set
-}
-
-// ── Intervalles libres du mois ────────────────────────────────
-function freeIntervals(userId) {
-  const occ = occupiedDays(userId)
-  if (occ.size === 0) return []   // aucun salaire de référence ce mois-ci → on ne génère rien
-  const max = daysInMonth.value
-  const gaps = []
-  let start = null
-  for (let d = 1; d <= max; d++) {
-    if (!occ.has(d) && start === null) start = d
-    if ((occ.has(d) || d === max) && start !== null) {
-      const end = occ.has(d) ? d - 1 : d
-      gaps.push({ start, end })
-      start = null
-    }
-  }
-  return gaps
-}
-
-// ── Calcul montant intervalle (avec majoration jour férié) ────
-function computeInterval(interval) {
-  const daily = parseFloat(form.value.dailyAmount) || 0
-  const factor = 1 + (parseFloat(form.value.majorationPct) || 0) / 100
-  let total = 0, normal = 0, ferie = 0
-  for (let d = interval.start; d <= interval.end; d++) {
-    if (isHoliday(d, form.value.month, form.value.year)) { total += daily * factor; ferie++ }
-    else { total += daily; normal++ }
-  }
-  return { total: Math.round(total * 100) / 100, normal, ferie }
-}
+// ── Sélection des salariés (logique dans employeeService) ─────
+const jobs     = computed(() => distinctJobs(employees.value))
+const filtered = computed(() => filterEmployees(employees.value, filters.value))
 
 // ── Aperçu global (1 ligne = 1 intervalle = 1 montant) ────────
-const preview = computed(() => {
-  const rows = []
-  for (const e of filtered.value) {
-    for (const g of freeIntervals(e.id)) {
-      const c = computeInterval(g)
-      rows.push({ userId: e.id, name: e.name, start: g.start, end: g.end, ...c })
-    }
-  }
-  return rows
-})
-
-const previewTotal = computed(() =>
-  Math.round(preview.value.reduce((s, r) => s + r.total, 0) * 100) / 100
+// Toute la logique métier vit dans salaryGenerationService.js.
+const preview = computed(() =>
+  buildPreview(filtered.value, salaries.value, {
+    month        : form.value.month,
+    year         : form.value.year,
+    dailyAmount  : form.value.dailyAmount,
+    majorationPct: form.value.majorationPct,
+    joursFeries  : joursFeries.value
+  })
 )
+
+const previewTotal = computed(() => sumPreview(preview.value))
 
 // ── Chargement ────────────────────────────────────────────────
 async function loadAll() {
@@ -173,35 +99,18 @@ async function handleGenerate() {
   if (!confirmed) return
 
   loading.value = true
-  const results = []
   try {
-    for (const row of preview.value) {
-      const dateStart = `${form.value.year}-${pad(form.value.month)}-${pad(row.start)}`
-      const dateEnd   = `${form.value.year}-${pad(form.value.month)}-${pad(row.end)}`
-      try {
-        const salaryId = await createSalary({
-          fk_user  : row.userId,
-          amount   : row.total,
-          dateStart, dateEnd
-        })
-        results.push({ ...row, success: true, salaryId })
-      } catch (err) {
-        results.push({
-          ...row,
-          success: false,
-          error  : err.response?.data?.error?.message || err.message
-        })
-      }
-    }
-    const ok = results.filter(r => r.success).length
-    const ko = results.length - ok
-    lastRun.value = { ok, ko, results }
+    const run = await runSalaryGeneration(preview.value, {
+      month: form.value.month,
+      year : form.value.year
+    })
+    lastRun.value = run
 
-    if (ko === 0) {
-      success.value = `${ok} salaire(s) généré(s) avec succès.`
+    if (run.ko === 0) {
+      success.value = `${run.ok} salaire(s) généré(s) avec succès.`
       form.value.dailyAmount = ''
     } else {
-      error.value = `${ok} succès, ${ko} échec(s). Voir le détail ci-dessous.`
+      error.value = `${run.ok} succès, ${run.ko} échec(s). Voir le détail ci-dessous.`
     }
     await loadAll()  // rafraîchir occupations
   } catch (e) {

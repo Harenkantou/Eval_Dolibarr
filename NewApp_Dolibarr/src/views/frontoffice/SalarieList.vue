@@ -2,6 +2,8 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { getEmployees, getSalaries } from '@/api/dolibarr'
+import { buildEmployeeStats, filterEmployeeRows } from '@/services/salaryListService'
+import { money, genderLabel } from '@/services/formatService'
 
 const router = useRouter()
 
@@ -17,56 +19,9 @@ const filters = ref({
   status: ''    // '', 'solde', 'encours'
 })
 
-// ── Agrégation des salaires par salarié (fk_user) ─────────────
-const statsByUser = computed(() => {
-  const map = {}
-  for (const s of salaries.value) {
-    const acc = map[s.fk_user] || { count: 0, due: 0, paid: 0 }
-    acc.count += 1
-    acc.due   += s.amount
-    acc.paid  += s.totalPaye
-    map[s.fk_user] = acc
-  }
-  // arrondis + statut
-  for (const k in map) {
-    map[k].due   = Math.round(map[k].due * 100) / 100
-    map[k].paid  = Math.round(map[k].paid * 100) / 100
-    map[k].rest  = Math.round((map[k].due - map[k].paid) * 100) / 100
-    map[k].solde = map[k].rest <= 0 && map[k].count > 0
-  }
-  return map
-})
-
-// ── Salariés enrichis (avec leurs totaux) ─────────────────────
-const rows = computed(() =>
-  employees.value.map(e => ({
-    ...e,
-    stats: statsByUser.value[e.id] || { count: 0, due: 0, paid: 0, rest: 0, solde: false }
-  }))
-)
-
-// ── Filtrage côté client ──────────────────────────────────────
-const filteredRows = computed(() => {
-  const q = filters.value.search.trim().toLowerCase()
-
-  return rows.value.filter(r => {
-    const matchSearch = !q ||
-      (r.name  || '').toLowerCase().includes(q) ||
-      (r.login || '').toLowerCase().includes(q) ||
-      String(r.ref ?? '').toLowerCase().includes(q)
-
-    const matchGender = !filters.value.gender || r.gender === filters.value.gender
-
-    const matchStatus = !filters.value.status ||
-      (filters.value.status === 'solde'   ?  r.stats.solde && r.stats.count > 0 : false) ||
-      (filters.value.status === 'encours' ? !r.stats.solde && r.stats.count > 0 : false)
-
-    return matchSearch && matchGender && matchStatus
-  })
-})
-
-const genderLabel = (g) => (g === 'man' ? '👨 Homme' : g === 'woman' ? '👩 Femme' : '—')
-const money = (n) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(Number(n) || 0)
+// ── Vues dérivées (logique dans salaryListService) ────────────
+const rows         = computed(() => buildEmployeeStats(employees.value, salaries.value))
+const filteredRows = computed(() => filterEmployeeRows(rows.value, filters.value))
 
 async function loadData() {
   loading.value = true

@@ -67,7 +67,7 @@ const createSalary = async (sal, userId) => {
   const detailPaiements = sal.payments.length > 0
     ? sal.payments.map(p => {
         const d = new Date(p.date_paye * 1000)
-        return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}: ${p.amount}€`
+        return `${String(d.getUTCDate()).padStart(2,'0')}/${String(d.getUTCMonth()+1).padStart(2,'0')}/${d.getUTCFullYear()}: ${p.amount}€`
       }).join(' | ')
     : 'aucun paiement'
 

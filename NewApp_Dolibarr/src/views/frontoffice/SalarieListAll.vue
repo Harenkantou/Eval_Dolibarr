@@ -2,13 +2,12 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { getEmployees } from '@/api/dolibarr'
+import { genderLabel } from '@/services/formatService'
 
 const router = useRouter()
 const employees = ref([])
 const loading   = ref(false)
 const error     = ref('')
-
-const genderLabel = (g) => (g === 'man' ? '👨 Homme' : g === 'woman' ? '👩 Femme' : '—')
 
 async function loadData() {
   loading.value = true

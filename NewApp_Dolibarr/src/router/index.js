@@ -12,8 +12,10 @@ import SalarieList       from '@/views/frontoffice/SalarieList.vue'
 import SalariePay        from '@/views/frontoffice/SalariePay.vue'
 import SalarieGenerate from '@/views/frontoffice/SalarieGenerate.vue'
 import SalarieGenerateNew from '@/views/frontoffice/SalarieGenerateNew.vue'
+import PaymentGenerate from '@/views/frontoffice/PaymentGenerate.vue'
 import SalarieListAll  from '@/views/frontoffice/SalarieListAll.vue'
 import SalarieDetail   from '@/views/frontoffice/SalarieDetail.vue'
+import SalaireLignesList from '@/views/frontoffice/SalaireLignesList.vue'
 
 const routes = [
   {
@@ -61,6 +63,18 @@ const routes = [
   name     : 'frontoffice-salaries-all',
   component: SalarieListAll
 },
+{
+  path     : '/frontoffice/salaries/history',
+  name     : 'frontoffice-salaries-history',
+  component: SalaireLignesList
+},
+
+{
+  path     : '/frontoffice/payment/generate',
+  name     : 'frontoffice-payment-generate',
+  component: PaymentGenerate
+},
+
 {
   path     : '/frontoffice/salaries/:id/detail',
   name     : 'frontoffice-salarie-detail',

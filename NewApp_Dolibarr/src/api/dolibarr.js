@@ -24,8 +24,8 @@ import api from '@/services/http'
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100
 
-/** "2026-03-08" (input date) → timestamp Unix en secondes */
-const isoToTs = (iso) => Math.floor(new Date(`${iso}T00:00:00`).getTime() / 1000)
+/** "2026-03-08" (input date) → timestamp Unix en secondes (minuit UTC) */
+const isoToTs = (iso) => Math.floor(new Date(`${iso}T00:00:00Z`).getTime() / 1000)
 
 /** "2026-03-08" (input date) → "08/03/2026" */
 const isoToFr = (iso) => {
@@ -36,7 +36,7 @@ const isoToFr = (iso) => {
 /** timestamp Unix (s) → "08/03/2026" */
 const tsToFr = (ts) => {
   const d = new Date(Number(ts) * 1000)
-  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
+  return `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}/${d.getUTCFullYear()}`
 }
 
 // ═════════════════════════════════════════════════════════════
@@ -222,6 +222,69 @@ export async function bulkCreateSalary(userIds, { amount, dateStart, dateEnd }) 
     }
   }
   return results
+}
+
+/**
+ * Exécute un plan de paiement (issu de buildDispatchPlan) : applique chaque
+ * ligne via addPayment. Séquentiel volontaire (ménage l'API locale).
+ *
+ * @param {Array}  plan            lignes { salaryId, payment, ... }
+ * @param {Object} p               { date } date "YYYY-MM-DD" appliquée à tous
+ * @returns {Promise<{ ok:number, ko:number, paidOk:number, results:Array }>}
+ *          results[i] = { ...line, success, error? }
+ */
+export async function runPaymentPlan(plan, { date }) {
+  const results = []
+  for (const line of plan) {
+    if (!(line.payment > 0)) continue            // non financé (0 €) : jamais envoyé à l'API
+    try {
+      await addPayment(line.salaryId, { date, amount: line.payment })
+      results.push({ ...line, success: true })
+    } catch (err) {
+      results.push({
+        ...line,
+        success: false,
+        error  : err.response?.data?.error?.message || err.message
+      })
+    }
+  }
+  const ok     = results.filter(r => r.success).length
+  const paidOk = round2(results.filter(r => r.success).reduce((s, r) => s + r.payment, 0))
+  return { ok, ko: results.length - ok, paidOk, results }
+}
+
+/**
+ * Génère un salaire par ligne d'aperçu (issu de buildPreview) : construit les
+ * dates à partir de month/year + jours de l'intervalle, puis createSalary.
+ *
+ * @param {Array}  preview         lignes { userId, total, start, end, ... }
+ * @param {Object} p               { month, year }
+ * @returns {Promise<{ ok:number, ko:number, results:Array }>}
+ *          results[i] = { ...row, success, salaryId? , error? }
+ */
+export async function runSalaryGeneration(preview, { month, year }) {
+  const pad = (n) => String(n).padStart(2, '0')
+  const results = []
+  for (const row of preview) {
+    const dateStart = `${year}-${pad(month)}-${pad(row.start)}`
+    const dateEnd   = `${year}-${pad(month)}-${pad(row.end)}`
+    try {
+      const salaryId = await createSalary({
+        fk_user  : row.userId,
+        amount   : row.total,
+        dateStart, dateEnd
+      })
+      results.push({ ...row, success: true, salaryId })
+    } catch (err) {
+      results.push({
+        ...row,
+        success: false,
+        error  : err.response?.data?.error?.message || err.message
+      })
+    }
+  }
+  const ok = results.filter(r => r.success).length
+  return { ok, ko: results.length - ok, results }
 }
 
 export default api

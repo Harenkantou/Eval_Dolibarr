@@ -15,15 +15,19 @@ const http = axios.create({
   }
 })
 
-// Intercepteur de réponse pour logger les erreurs proprement
+// Intercepteur de réponse pour logger les erreurs proprement.
+// Les 404 sont attendus (ex: user sans documents, /salaries vide) et
+// déjà gérés par les appelants → on ne les log pas pour éviter le bruit.
 http.interceptors.response.use(
   response => response,
   error => {
-    console.error(
-      '[HTTP Error]',
-      error.response?.status,
-      error.response?.data || error.message
-    )
+    if (error.response?.status !== 404) {
+      console.error(
+        '[HTTP Error]',
+        error.response?.status,
+        error.response?.data || error.message
+      )
+    }
     return Promise.reject(error)
   }
 )

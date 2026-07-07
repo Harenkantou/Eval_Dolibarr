@@ -11,7 +11,7 @@ Scénario:
 Poste Technicien 
 Reset
 Import
-Créer 2 h=jours Feries
+Créer 2jours Feries
 14/02/2024
 22/02/2024
 Salaire par jour: 20

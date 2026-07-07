@@ -26,6 +26,15 @@ function goToSalariesGenerate() {
 function goToSalariesGenerateMonthly() {
   router.push({ name: 'frontoffice-salaries-generate-monthly' })
 }
+
+function goToListSalary() {
+  router.push({ name: 'frontoffice-salaries-history' })
+}
+
+function goToPayGenerate() {
+  router.push({ name: 'frontoffice-payment-generate' })
+}
+
 </script>
 
 <template>
@@ -43,7 +52,9 @@ function goToSalariesGenerateMonthly() {
           <button class="primary" @click="goChangeSpace">Changer d’espace</button>
           <button class="secondary" @click="goToBackoffice">Aller au BackOffice</button>
           <button class="secondary" @click="goToSalaries">Voir les salariés</button>
-        </div>
+          <button class="secondary" @click="goToListSalary">Voir la liste des salaires </button>
+          <!-- <button class="secondary" @click="goToPayGenerate">Voir la page liste générer paiement </button>
+ -->        </div>
       </div>
     </section>
 
@@ -70,13 +81,20 @@ function goToSalariesGenerateMonthly() {
           <p>Filtrez les salariés (poste, genre, heures) puis créez plusieurs salaires en une fois.</p>
           <button class="inline-action alt" @click="goToSalariesGenerate">Ouvrir</button>
         </article>
-
         <article class="quick-card highlight">
           <span class="card-icon">📅</span>
           <h3>Générer par mois (jours fériés)</h3>
           <p>Générez les salaires des jours non couverts d'un mois, avec majoration des jours fériés.</p>
           <button class="inline-action alt" @click="goToSalariesGenerateMonthly">Ouvrir</button>
         </article>
+
+        <article class="quick-card highlight">
+          <span class="card-icon">📅</span>
+          <h3>Générer paiement</h3>
+          <p>Générez les paiements dans cette page.</p>
+          <button class="inline-action alt" @click="goToPayGenerate">Ouvrir</button>
+        </article>
+
       </div>
     </section>
   </div>

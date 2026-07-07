@@ -7,6 +7,8 @@ import {
   createSalary,
   addPayment
 } from '@/api/dolibarr'
+import { sumSalaries } from '@/services/salaryListService'
+import { money, genderLabel, initials } from '@/services/formatService'
 
 const route  = useRoute()
 const router = useRouter()
@@ -32,19 +34,7 @@ const salaryForm = ref({
 const payForms = ref({})
 
 // ── Totaux du salarié ─────────────────────────────────────────
-const totals = computed(() => {
-  const due  = salaries.value.reduce((s, x) => s + x.amount, 0)
-  const paid = salaries.value.reduce((s, x) => s + x.totalPaye, 0)
-  return {
-    due : Math.round(due * 100) / 100,
-    paid: Math.round(paid * 100) / 100,
-    rest: Math.round((due - paid) * 100) / 100
-  }
-})
-
-const genderLabel = (g) => (g === 'man' ? '👨 Homme' : g === 'woman' ? '👩 Femme' : '—')
-const money = (n) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(Number(n) || 0)
-const initials = (name) => (name || '?').trim().slice(0, 2).toUpperCase()
+const totals = computed(() => sumSalaries(salaries.value))
 
 // ── Chargement ────────────────────────────────────────────────
 async function loadData() {

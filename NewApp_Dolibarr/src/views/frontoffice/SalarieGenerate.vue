@@ -2,6 +2,8 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { getEmployees, bulkCreateSalary } from '@/api/dolibarr'
+import { distinctJobs, filterEmployees } from '@/services/employeeService'
+import { money, genderLabel } from '@/services/formatService'
 
 const router = useRouter()
 
@@ -28,31 +30,9 @@ const form = ref({
   dateEnd  : today
 })
 
-// ── Liste des postes distincts (pour le select) ───────────────
-const jobs = computed(() => {
-  const set = new Set()
-  for (const e of employees.value) {
-    if (e.job) set.add(e.job)
-  }
-  return [...set].sort()
-})
-
-// ── Application des filtres ───────────────────────────────────
-const filtered = computed(() => {
-  const min = filters.value.hoursMin === '' ? -Infinity : parseFloat(filters.value.hoursMin)
-  const max = filters.value.hoursMax === '' ?  Infinity : parseFloat(filters.value.hoursMax)
-
-  return employees.value.filter(e => {
-    if (filters.value.job    && e.job    !== filters.value.job)    return false
-    if (filters.value.gender && e.gender !== filters.value.gender) return false
-    const h = Number(e.hours) || 0
-    if (h < min || h > max) return false
-    return true
-  })
-})
-
-const genderLabel = (g) => (g === 'man' ? '👨 Homme' : g === 'woman' ? '👩 Femme' : '—')
-const money = (n) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(Number(n) || 0)
+// ── Sélection des salariés (logique dans employeeService) ─────
+const jobs     = computed(() => distinctJobs(employees.value))
+const filtered = computed(() => filterEmployees(employees.value, filters.value))
 
 async function loadEmployees() {
   loading.value = true

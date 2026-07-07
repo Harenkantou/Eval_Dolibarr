@@ -2,6 +2,8 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getEmployee, getEmployeeSalaries } from '@/api/dolibarr'
+import { sumSalaries } from '@/services/salaryListService'
+import { money, tsToFr, genderLabel, initials } from '@/services/formatService'
 
 const route  = useRoute()
 const router = useRouter()
@@ -12,25 +14,7 @@ const salaries = ref([])
 const loading  = ref(false)
 const error    = ref('')
 
-const totals = computed(() => {
-  const due  = salaries.value.reduce((s, x) => s + x.amount,    0)
-  const paid = salaries.value.reduce((s, x) => s + x.totalPaye, 0)
-  return {
-    due : Math.round(due  * 100) / 100,
-    paid: Math.round(paid * 100) / 100,
-    rest: Math.round((due - paid) * 100) / 100
-  }
-})
-
-const genderLabel = (g) => (g === 'man' ? '👨 Homme' : g === 'woman' ? '👩 Femme' : '—')
-const money = (n) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(Number(n) || 0)
-const initials = (name) => (name || '?').trim().slice(0, 2).toUpperCase()
-
-const tsToFr = (ts) => {
-  if (!ts) return '-'
-  const d = new Date(Number(ts) * 1000)
-  return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`
-}
+const totals = computed(() => sumSalaries(salaries.value))
 
 async function loadData() {
   loading.value = true
