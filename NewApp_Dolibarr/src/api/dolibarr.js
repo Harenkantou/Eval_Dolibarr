@@ -27,6 +27,15 @@ const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100
 /** "2026-03-08" (input date) → timestamp Unix en secondes (minuit UTC) */
 const isoToTs = (iso) => Math.floor(new Date(`${iso}T00:00:00Z`).getTime() / 1000)
 
+/**
+ * « Snap » d'un timestamp Dolibarr au minuit UTC le plus proche.
+ * Le serveur Dolibarr stocke les dates à minuit dans SON fuseau (UTC+1),
+ * donc il renvoie nos minuits-UTC décalés de -1h (ex. 01/02 23:00 UTC pour
+ * le 02/02). Sans correction, getUTCDate() renvoie le jour précédent (-1).
+ * On arrondit au jour entier le plus proche → jour calendaire correct.
+ */
+const snapDay = (ts) => (ts == null || ts === '') ? ts : Math.round(Number(ts) / 86400) * 86400
+
 /** "2026-03-08" (input date) → "08/03/2026" */
 const isoToFr = (iso) => {
   const [y, m, d] = iso.split('-')
@@ -94,8 +103,8 @@ const normalizeSalary = (s) => {
     id       : s.id,
     fk_user  : parseInt(s.fk_user),
     amount,
-    datesp   : s.datesp,
-    dateep   : s.dateep,
+    datesp   : snapDay(s.datesp),   // corrige le décalage -1 jour (fuseau serveur)
+    dateep   : snapDay(s.dateep),
     baseLabel: baseOfLabel(s.label),
     rawLabel : s.label,
     payments,                                             // [{ date, amount }]

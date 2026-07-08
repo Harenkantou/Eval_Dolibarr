@@ -225,6 +225,12 @@ onMounted(loadAll)
           <dl class="recap-lines">
             <div><dt>Salaire total à payer</dt><dd>{{ money(r.totalDue) }}</dd></div>
             <div class="hl"><dt>Salaire déjà payé</dt><dd>{{ money(r.totalPaid) }}</dd></div>
+            <div class="hl highlight-reste">
+              <dt> Reste à payer</dt>
+              <dd :class="r.totalReste > 0 ? 'reste-due' : 'reste-zero'">
+                {{ money(r.totalReste) }}
+              </dd>
+            </div>
           </dl>
         </article>
       </div>

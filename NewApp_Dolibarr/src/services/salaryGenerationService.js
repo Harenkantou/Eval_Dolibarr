@@ -60,30 +60,105 @@ export function freeIntervals(userId, salaries, month, year) {
   return gaps
 }
 
-/** Montant d'un intervalle avec majoration des jours fériés. */
-export function computeInterval(interval, { month, year, dailyAmount, majorationPct, joursFeries }) {
-  const daily  = parseFloat(dailyAmount) || 0
-  const factor = 1 + (parseFloat(majorationPct) || 0) / 100
-  let total = 0, normal = 0, ferie = 0
+/** Un jour est-il un samedi ? (0 = dimanche … 6 = samedi) */
+export function isSaturday(day, month, year) {
+  return new Date(year, month - 1, day).getDay() === 6
+}
+
+/** Un jour est-il un dimanche ? */
+export function isSunday(day, month, year) {
+  return new Date(year, month - 1, day).getDay() === 0
+}
+
+const round2 = (n) => Math.round(n * 100) / 100
+
+/**
+ * Montant d'un intervalle avec majoration des jours fériés ET du week-end.
+ *
+ * Règles (énoncé Alea_J3) :
+ *   → Par défaut, samedis et dimanches ne sont PAS payés.
+ *   → `includeSaturday` / `includeSunday` : cocher un jour l'intègre au salaire,
+ *     majoré par `weekendMajorationPct` (un seul champ, jusqu'à 200 %).
+ *   → Un jour à la fois férié ET week-end coché prend le MAX des deux majorations
+ *     (ex. week-end 100 % vs férié 150 % → 150 %).
+ *   → Les majorations samedi et dimanche sont exposées séparément pour pouvoir
+ *     les déduire individuellement.
+ */
+export function computeInterval(interval, {
+  month, year, dailyAmount, majorationPct,
+  weekendMajorationPct = 0, includeSaturday = false, includeSunday = false,
+  joursFeries
+}) {
+  const daily    = parseFloat(dailyAmount) || 0
+  const feriePct = parseFloat(majorationPct) || 0
+  const weekPct  = parseFloat(weekendMajorationPct) || 0
+
+  let total = 0
+  let normal = 0, ferie = 0, samedi = 0, dimanche = 0
+  let majFerie = 0, majSamedi = 0, majDimanche = 0
+
   for (let d = interval.start; d <= interval.end; d++) {
-    if (isHoliday(d, month, year, joursFeries)) { total += daily * factor; ferie++ }
-    else { total += daily; normal++ }
+    const holiday = isHoliday(d, month, year, joursFeries)
+
+    // ── Samedi ────────────────────────────────────────────────
+    if (isSaturday(d, month, year)) {
+      if (!includeSaturday) continue                 // non coché → pas payé
+      const pct   = Math.max(weekPct, holiday ? feriePct : 0)
+      const extra = daily * pct / 100
+      total += daily + extra
+      majSamedi += extra
+      samedi++
+      continue
+    }
+
+    // ── Dimanche ──────────────────────────────────────────────
+    if (isSunday(d, month, year)) {
+      if (!includeSunday) continue                   // non coché → pas payé
+      const pct   = Math.max(weekPct, holiday ? feriePct : 0)
+      const extra = daily * pct / 100
+      total += daily + extra
+      majDimanche += extra
+      dimanche++
+      continue
+    }
+
+    // ── Jour de semaine ───────────────────────────────────────
+    if (holiday) {
+      const extra = daily * feriePct / 100
+      total += daily + extra
+      majFerie += extra
+      ferie++
+    } else {
+      total += daily
+      normal++
+    }
   }
-  return { total: Math.round(total * 100) / 100, normal, ferie }
+
+  return {
+    total: round2(total),
+    normal, ferie, samedi, dimanche,
+    majFerie   : round2(majFerie),
+    majSamedi  : round2(majSamedi),
+    majDimanche: round2(majDimanche)
+  }
 }
 
 /**
  * Aperçu global : 1 ligne = 1 intervalle = 1 montant.
  * @param {Array}  employees     salariés déjà filtrés (interface)
  * @param {Array}  salaries      tous les salaires existants
- * @param {Object} params        { month, year, dailyAmount, majorationPct, joursFeries }
- * @returns {Array} [{ userId, name, start, end, total, normal, ferie }]
+ * @param {Object} params        { month, year, dailyAmount, majorationPct,
+ *                                  weekendMajorationPct, includeSaturday, includeSunday, joursFeries }
+ * @returns {Array} [{ userId, name, start, end, total, normal, ferie, samedi, dimanche, majFerie, majSamedi, majDimanche }]
  */
 export function buildPreview(employees, salaries, params) {
   const rows = []
   for (const e of employees) {
     for (const g of freeIntervals(e.id, salaries, params.month, params.year)) {
-      rows.push({ userId: e.id, name: e.name, start: g.start, end: g.end, ...computeInterval(g, params) })
+      const c = computeInterval(g, params)
+      // Intervalle ne contenant que des week-ends non cochés → rien à générer
+      if (c.normal + c.ferie + c.samedi + c.dimanche === 0) continue
+      rows.push({ userId: e.id, name: e.name, start: g.start, end: g.end, ...c })
     }
   }
   return rows

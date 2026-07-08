@@ -29,10 +29,13 @@ const filters = ref({
 
 // ── Formulaire génération ─────────────────────────────────────
 const form = ref({
-  month        : now.getMonth() + 1,
-  year         : now.getFullYear(),
-  dailyAmount  : '',
-  majorationPct: 50
+  month               : now.getMonth() + 1,
+  year                : now.getFullYear(),
+  dailyAmount         : '',
+  majorationPct       : 50,
+  includeSaturday     : false,
+  includeSunday       : false,
+  weekendMajorationPct: 100
 })
 
 const MONTHS = [
@@ -48,11 +51,14 @@ const filtered = computed(() => filterEmployees(employees.value, filters.value))
 // Toute la logique métier vit dans salaryGenerationService.js.
 const preview = computed(() =>
   buildPreview(filtered.value, salaries.value, {
-    month        : form.value.month,
-    year         : form.value.year,
-    dailyAmount  : form.value.dailyAmount,
-    majorationPct: form.value.majorationPct,
-    joursFeries  : joursFeries.value
+    month               : form.value.month,
+    year                : form.value.year,
+    dailyAmount         : form.value.dailyAmount,
+    majorationPct       : form.value.majorationPct,
+    weekendMajorationPct: form.value.weekendMajorationPct,
+    includeSaturday     : form.value.includeSaturday,
+    includeSunday       : form.value.includeSunday,
+    joursFeries         : joursFeries.value
   })
 )
 
@@ -229,6 +235,24 @@ onMounted(loadAll)
           </div>
         </div>
 
+        <!-- ── Options week-end ───────────────────────────── -->
+        <div class="weekend-row">
+          <label class="check">
+            <input type="checkbox" v-model="form.includeSaturday" />
+            Inclure les samedis
+          </label>
+          <label class="check">
+            <input type="checkbox" v-model="form.includeSunday" />
+            Inclure les dimanches
+          </label>
+          <div class="form-group">
+            <label>Majoration week-end (%)</label>
+            <input type="number" step="1" min="0" max="200"
+                   v-model.number="form.weekendMajorationPct"
+                   :disabled="!form.includeSaturday && !form.includeSunday" />
+          </div>
+        </div>
+
         <!-- ── Aperçu des lignes à générer ────────────────── -->
         <div v-if="preview.length" class="run-result">
           <h3>Aperçu ({{ preview.length }} ligne(s) — total {{ money(previewTotal) }})</h3>
@@ -239,6 +263,10 @@ onMounted(loadAll)
                 <th>Intervalle</th>
                 <th>Jours normaux</th>
                 <th>Jours fériés</th>
+                <th>Samedis</th>
+                <th>Dimanches</th>
+                <th>Maj. samedi</th>
+                <th>Maj. dimanche</th>
                 <th>Montant</th>
               </tr>
             </thead>
@@ -248,6 +276,10 @@ onMounted(loadAll)
                 <td>{{ pad(r.start) }}/{{ pad(form.month) }} → {{ pad(r.end) }}/{{ pad(form.month) }}/{{ form.year }}</td>
                 <td>{{ r.normal }}</td>
                 <td>{{ r.ferie }}</td>
+                <td>{{ r.samedi }}</td>
+                <td>{{ r.dimanche }}</td>
+                <td>{{ money(r.majSamedi) }}</td>
+                <td>{{ money(r.majDimanche) }}</td>
                 <td>{{ money(r.total) }}</td>
               </tr>
             </tbody>
@@ -424,6 +456,32 @@ onMounted(loadAll)
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 1rem;
+}
+
+.weekend-row {
+  display: flex;
+  align-items: end;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  padding: 0.75rem 0;
+  border-top: 1px dashed #e2e8f0;
+}
+
+.weekend-row .check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: #1e293b;
+  cursor: pointer;
+}
+
+.weekend-row .check input { width: auto; }
+
+.weekend-row .form-group input:disabled {
+  background: #f1f5f9;
+  color: #94a3b8;
+  cursor: not-allowed;
 }
 
 .form-actions {

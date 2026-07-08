@@ -1,11 +1,11 @@
 const round2 = (n)  => Math.round((Number(n) || 0) * 100) / 100
 
-//Filtre les salaires par mois/années
+//Filtre les salaires par mois/années (sur la date de début, en UTC)
 export function filterByMonth(salaries, month, year) {
     return salaries.filter(s => {
         if (!s.datesp) return false
         const d = new Date(s.datesp * 1000)
-        return d.getFullYear() === year && d.getMonth() + 1 === month
+        return d.getUTCFullYear() === year && d.getUTCMonth() + 1 === month
     })
 }
 
@@ -104,16 +104,24 @@ export function buildRecap(results = []) {
   for (const r of results) {
     if (!r.success) continue
     const cur = byUser.get(r.userId) || {
-      userId: r.userId, name: r.name, job: r.job, totalDue: 0, totalPaid: 0
+      userId: r.userId, 
+      name: r.name, 
+      job: r.job, 
+      totalDue: 0, 
+      totalPaid: 0,
+      totalReste: 0 
     }
     cur.totalDue  += Number(r.amount) || 0
     cur.totalPaid += (Number(r.amount) || 0) - (Number(r.resteAfter) || 0)
+
+    cur.totalReste += Number(r.resteAfter) || 0
     byUser.set(r.userId, cur)
   }
   return [...byUser.values()].map(u => ({
     ...u,
     totalDue : round2(u.totalDue),
     totalPaid: round2(u.totalPaid),
+    totalReste: round2(u.totalReste),
     solde    : round2(u.totalDue - u.totalPaid) <= 0
   }))
 }
