@@ -41,4 +41,4 @@ On doit aussi prendre en compte que des paiements sont deja importés via import
  Fevrier 2024: Technicien/1600
 
  Résultat:
-On doit obtenir 11 opérations pour le résultat et pour moi c'est 9, corriger cela 
+On doit obtenir 11 opérations pour le résultat 
