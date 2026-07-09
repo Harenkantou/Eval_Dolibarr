@@ -24,11 +24,12 @@ On doit aussi prendre en compte que des paiements sont deja importés via import
  http://localhost:5173/frontoffice/salaries/79/pay
 
  Scénario à faire:
+ 
  Reset
  Import
  Insert Jour férieé: 14/02/2024 ET 22/02/2024
 
- Insertion salaire multiple:
+ 
  Filtre: Heure min 38 heure max: 42
  Date debut: 13/02/24
  Date fin: 20/02/24

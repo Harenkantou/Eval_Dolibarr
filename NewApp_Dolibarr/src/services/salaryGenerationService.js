@@ -35,8 +35,8 @@ export function occupiedDays(userId, salaries, month, year) {
   const set = new Set()
   for (const s of salaries) {
     if (Number(s.fk_user) !== Number(userId) || !s.datesp || !s.dateep) continue
-    for (let d = new Date(s.datesp * 1000); d <= new Date(s.dateep * 1000); d.setUTCDate(d.getUTCDate() + 1)) {
-      if (d.getUTCFullYear() === year && d.getUTCMonth() + 1 === month) set.add(d.getUTCDate())
+    for (let d = new Date(s.datesp * 1000); d <= new Date(s.dateep * 1000); d.setDate(d.getDate() + 1)) {
+      if (d.getFullYear() === year && d.getMonth() + 1 === month) set.add(d.getDate())
     }
   }
   return set
@@ -75,10 +75,12 @@ const round2 = (n) => Math.round(n * 100) / 100
 /**
  * Montant d'un intervalle avec majoration des jours fériés ET du week-end.
  *
- * Règles (énoncé Alea_J3) :
- *   → Par défaut, samedis et dimanches ne sont PAS payés.
- *   → `includeSaturday` / `includeSunday` : cocher un jour l'intègre au salaire,
- *     majoré par `weekendMajorationPct` (un seul champ, jusqu'à 200 %).
+ * Règles (énoncé Alea_J3, en surcouche NON destructive de J2) :
+ *   → Par défaut (cases décochées), un samedi ou un dimanche est payé
+ *     EXACTEMENT comme un jour de semaine — aucun découpage d'intervalle,
+ *     aucune modification du résultat J2.
+ *   → `includeSaturday` / `includeSunday` : cocher un jour applique EN PLUS
+ *     la majoration `weekendMajorationPct` (un seul champ, jusqu'à 200 %).
  *   → Un jour à la fois férié ET week-end coché prend le MAX des deux majorations
  *     (ex. week-end 100 % vs férié 150 % → 150 %).
  *   → Les majorations samedi et dimanche sont exposées séparément pour pouvoir
@@ -100,9 +102,8 @@ export function computeInterval(interval, {
   for (let d = interval.start; d <= interval.end; d++) {
     const holiday = isHoliday(d, month, year, joursFeries)
 
-    // ── Samedi ────────────────────────────────────────────────
-    if (isSaturday(d, month, year)) {
-      if (!includeSaturday) continue                 // non coché → pas payé
+    // ── Samedi coché → majoration week-end (max avec férié) ───
+    if (isSaturday(d, month, year) && includeSaturday) {
       const pct   = Math.max(weekPct, holiday ? feriePct : 0)
       const extra = daily * pct / 100
       total += daily + extra
@@ -111,9 +112,8 @@ export function computeInterval(interval, {
       continue
     }
 
-    // ── Dimanche ──────────────────────────────────────────────
-    if (isSunday(d, month, year)) {
-      if (!includeSunday) continue                   // non coché → pas payé
+    // ── Dimanche coché → majoration week-end (max avec férié) ─
+    if (isSunday(d, month, year) && includeSunday) {
       const pct   = Math.max(weekPct, holiday ? feriePct : 0)
       const extra = daily * pct / 100
       total += daily + extra
@@ -122,7 +122,7 @@ export function computeInterval(interval, {
       continue
     }
 
-    // ── Jour de semaine ───────────────────────────────────────
+    // ── Jour de semaine OU week-end décoché → comportement J2 ─
     if (holiday) {
       const extra = daily * feriePct / 100
       total += daily + extra
@@ -156,8 +156,6 @@ export function buildPreview(employees, salaries, params) {
   for (const e of employees) {
     for (const g of freeIntervals(e.id, salaries, params.month, params.year)) {
       const c = computeInterval(g, params)
-      // Intervalle ne contenant que des week-ends non cochés → rien à générer
-      if (c.normal + c.ferie + c.samedi + c.dimanche === 0) continue
       rows.push({ userId: e.id, name: e.name, start: g.start, end: g.end, ...c })
     }
   }
