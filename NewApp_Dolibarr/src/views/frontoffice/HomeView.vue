@@ -35,6 +35,10 @@ function goToPayGenerate() {
   router.push({ name: 'frontoffice-payment-generate' })
 }
 
+function goToResteMensuel() {
+  router.push({ name: 'frontoffice-reste-mensuel' })
+}
+
 </script>
 
 <template>
@@ -88,12 +92,21 @@ function goToPayGenerate() {
           <button class="inline-action alt" @click="goToSalariesGenerateMonthly">Ouvrir</button>
         </article>
 
-        <article class="quick-card highlight">
+         <article class="quick-card highlight">
           <span class="card-icon">📅</span>
-          <h3>Générer paiement</h3>
-          <p>Générez les paiements dans cette page.</p>
+          <h3>Generer paiement </h3>
+          <p>Veuillez entrer le paiement</p>
           <button class="inline-action alt" @click="goToPayGenerate">Ouvrir</button>
         </article>
+
+
+        <article class="quick-card highlight">
+          <span class="card-icon">📅</span>
+          <h3>Reste à payer par mois </h3>
+          <p>Veuillez voir le reste à payer mensuel dans cette page</p>
+          <button class="inline-action alt" @click="goToPayGenerateReste">Ouvrir</button>
+        </article>
+
 
       </div>
     </section>

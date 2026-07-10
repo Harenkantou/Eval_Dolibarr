@@ -22,7 +22,7 @@ const now = new Date()
 // ── Filtres ───────────────────────────────────────────────────
 const filters = ref({
   job     : '',
-  gender  : '', //pause eto lay souris
+  gender  : '',
   hoursMin: '',
   hoursMax: ''
 })

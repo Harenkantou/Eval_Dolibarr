@@ -16,6 +16,7 @@ import PaymentGenerate from '@/views/frontoffice/PaymentGenerate.vue'
 import SalarieListAll  from '@/views/frontoffice/SalarieListAll.vue'
 import SalarieDetail   from '@/views/frontoffice/SalarieDetail.vue'
 import SalaireLignesList from '@/views/frontoffice/SalaireLignesList.vue'
+import ResteAPayerMensuel from '@/views/frontoffice/ResteAPayerMensuel.vue'
 
 const routes = [
   {
@@ -73,6 +74,12 @@ const routes = [
   path     : '/frontoffice/payment/generate',
   name     : 'frontoffice-payment-generate',
   component: PaymentGenerate
+},
+
+{
+  path     : '/frontoffice/salaries/reste-mensuel',
+  name     : 'frontoffice-reste-mensuel',
+  component: ResteAPayerMensuel
 },
 
 {
