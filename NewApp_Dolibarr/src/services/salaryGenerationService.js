@@ -3,9 +3,11 @@
 // Logique métier de la génération de salaires « par mois » avec
 // majoration des jours fériés.
 //
-// Règle (énoncé) :
+// Règle (énoncé J4) :
 //   → On génère les jours d'un mois qui n'ont PAS encore de salaire.
-//   → Un salarié SANS aucun salaire de référence ce mois-ci ne génère rien.
+//   → Un salarié SANS aucun salaire ce mois-ci a donc le mois entier de libre :
+//     on lui génère une ligne du 1er au dernier jour du mois.
+//     (Remplace la règle J2/J3 « pas de salaire de référence → rien à générer ».)
 //   → Chaque jour férié tombant dans un intervalle est majoré du %.
 //   → 1 intervalle libre = 1 ligne = 1 montant (il peut y en avoir plusieurs).
 //
@@ -45,8 +47,8 @@ export function occupiedDays(userId, salaries, month, year) {
 /** Intervalles libres du mois pour un salarié : [{ start, end }]. */
 export function freeIntervals(userId, salaries, month, year) {
   const occ = occupiedDays(userId, salaries, month, year)
-  if (occ.size === 0) return []   // aucun salaire de référence ce mois-ci → on ne génère rien
   const max = daysInMonth(month, year)
+  if (occ.size === 0) return [{ start: 1, end: max }]   // aucun salaire ce mois-ci → le mois entier est libre
   const gaps = []
   let start = null
   for (let d = 1; d <= max; d++) {

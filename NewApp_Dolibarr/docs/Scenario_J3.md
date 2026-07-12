@@ -124,17 +124,20 @@ Total : 2500
 
 ## Scénario 7 — Salarié sans salaire de référence
 
+> ⚠️ **Obsolète depuis J4.** L'énoncé J4 remplace la règle « pas de salaire de
+> référence → rien à générer » par « aucun salaire ce mois-ci → le mois entier
+> est libre ». Voir `src/views/frontoffice/scenario_J4.txt` (Mars 2024,
+> Comptable, 20 €/j → Rakotobe 620 €).
+
 Filtre salarié : Poste Vente
 
 Mois : Mars 2026
 Salaire/j : 100
 Cases : Samedi ☑ Dimanche ☑ (peu importe)
 
-Résultat attendu :
-Rajao — Mars 2026 : 0 ligne
-Total : 0
-
-À vérifier : la règle "pas de génération sans salaire de référence dans le mois" tient même avec les cases cochées.
+Résultat attendu (J4) :
+Rajao — Mars 2026 : 1 ligne 01→31
+Total : 3100
 
 ---
 

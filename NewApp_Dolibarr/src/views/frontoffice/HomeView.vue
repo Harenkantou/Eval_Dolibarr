@@ -104,7 +104,7 @@ function goToResteMensuel() {
           <span class="card-icon">📅</span>
           <h3>Reste à payer par mois </h3>
           <p>Veuillez voir le reste à payer mensuel dans cette page</p>
-          <button class="inline-action alt" @click="goToPayGenerateReste">Ouvrir</button>
+          <button class="inline-action alt" @click="goToResteMensuel">Ouvrir</button>
         </article>
 
 

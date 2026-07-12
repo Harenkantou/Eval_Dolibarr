@@ -1,4 +1,4 @@
-import { round2 } from './formatService'
+import { round2, pad } from './formatService'
 
 export const MONTH_NAMES = ['Janvier', 'Fevrier', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Aout', 'Septembre', 'Octobre', 'Novembre', 'Decembre']
 
@@ -22,17 +22,18 @@ export function listYears(salaries = []) {
 /**Construction d'un ligne par croisement
  * @params {Array} employees issus de getEmployees()
  * @params {Array} salaries issus de getSalaires()
- * @params {Objects} opts {year} filtre optionnel sur l'année
+ * @params {Objects} opts {year, month} filtres optionnels (null = tous)
  * @return {Array} [{key, year, month, monthLabel,userId, name, ref, job, etc}]
  */
 
-export function buildMonthlyRest(employees = [], salaries = [], { year = null } = {}) {
+export function buildMonthlyRest(employees = [], salaries = [], { year = null, month = null } = {}) {
     const empById = new Map(employees.map(e => [String(e.id), e]))
     const rows = new Map()
     for(const s of salaries) {
         if (!s.datesp) continue
         const { year: y, month: m} = periodOf(s.datesp)
         if (year && y !== year ) continue
+        if (month && m !== month) continue
 
         const key = `${y}-${m}-${s.fk_user}`
         const emp = empById.get(String(s.fk_user))
@@ -68,38 +69,50 @@ export function buildMonthlyRest(employees = [], salaries = [], { year = null } 
     })
 }
 
-/**Tri des lignes
- * @params {Array} rows
- * @params{Object} opts {by: 'month'|'name'|'rest', dir: 'asc'|'desc'}
+/**Colonnes du tableau croisé : un salarié = une colonne, y compris ceux
+ * qui n'ont aucun salaire (leur colonne reste vide).
+ * @params {Array} employees
+ * @return {Array} [{ userId, name, ref }] trié par référence puis nom
  */
-export function sortRows(rows = [], {by = 'month', dir= 'asc'} = {}) {
-    const sign = dir === 'desc' ?-1 :1
-    const byName = (a, b) => (a.name || '').localeCompare(b.name || '')
-
-    return [...rows].sort((a, b) => {
-        if(by === 'name') return sign * byName(a, b)
-        if(by === 'rest') {
-            if(a.rest !==b.rest) return sign * (a.rest - b.rest)
-                return byName(a, b)
-        }
-        //by === 'month' : annéée puis nom
-        if(a.year !== b.year) return sign * (a.year - b.year)
-        if(a.month !== b.month) return sign *(a.month - b.month)
-            return byName(a, b)
-    })
+export function pivotColumns(employees = []) {
+    return [...employees]
+        .sort((a, b) =>
+            (Number(a.ref) || 0) - (Number(b.ref) || 0) ||
+            (a.name || '').localeCompare(b.name || ''))
+        .map(e => ({ userId: String(e.id), name: e.name, ref: e.ref ?? null }))
 }
 
-//Filtre par recherche
-/** @params {Object} filters { search, onlyRest } */
+/**Pivot : une ligne par couple (Mois, Année), une cellule par salarié.
+ * Seules les périodes portant au moins un salaire produisent une ligne.
+ * @params {Array} rows croisements issus de buildMonthlyRest()
+ * @return {Array} [{ key, year, month, monthLabel, cells: {userId: row}, rest }]
+ */
+export function buildPivot(rows = []) {
+    const periods = new Map()
+    for (const r of rows) {
+        const key = `${r.year}-${pad(r.month)}`
+        const p = periods.get(key) || {
+            key,
+            year      : r.year,
+            month     : r.month,
+            monthLabel: monthLabel(r.month),
+            cells     : {},
+            rest      : 0
+        }
+        p.cells[String(r.userId)] = r
+        p.rest += r.rest
+        periods.set(key, p)
+    }
+    return [...periods.values()].map(p => ({ ...p, rest: round2(p.rest) }))
+}
 
-export function filterRows(rows = [], { search = '', onlyRest = false} = {}) {
-
-    const q = search.trim().toLowerCase()
-    return rows.filter(r => {
-        const matchSearch = !q || (r.name || '').toLowerCase().includes(q) || String(r.ref ?? '').toLowerCase().includes(q)
-        const matchRest = !onlyRest || !r.solde
-        return matchSearch && matchRest
-    })
+/**Tri des périodes du pivot (colonne « Mois & Année »).
+ * @params {Object} opts {dir: 'asc'|'desc'}
+ */
+export function sortPeriods(periods = [], { dir = 'asc' } = {}) {
+    const sign = dir === 'desc' ? -1 : 1
+    return [...periods].sort((a, b) =>
+        sign * (a.year - b.year) || sign * (a.month - b.month))
 }
 
 //Totaux des ensembles
@@ -123,4 +136,18 @@ export function paymentsOfRow(row) {
         datesp  : s.datesp,
         dateep  : s.dateep
     })))
+}
+
+//ALEA_5
+export function cellsOfPeriod(period, columns = []) {
+    if (!period) return []
+    return columns.map(c => period.cells[String(c.userId)]).filter(Boolean)
+}
+
+export function cellsOfEmployee(rows = [], userId) {
+    return rows.filter(r => String(r.userId) === String(userId))
+}
+
+export function restOf(cells = []) {
+    return round2(cells.reduce((s, c) => s + (c.rest || 0), 0))
 }

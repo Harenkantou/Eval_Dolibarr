@@ -174,8 +174,9 @@ libres, qui reste inchangé par rapport à J2 :
 
 1. `occupiedDays(userId, salaries, month, year)` → jours du mois déjà couverts
    par un salaire existant.
-2. Si l'ensemble est **vide**, le salarié n'a aucun salaire de référence ce
-   mois-ci → **aucune ligne générée** pour lui.
+2. Si l'ensemble est **vide**, le salarié n'a aucun salaire ce mois-ci → le mois
+   entier est libre, une ligne `1 → dernier jour` est générée.
+   (Règle J4 ; en J2/J3 ce cas ne générait **rien**.)
 3. `freeIntervals(...)` → liste des trous `[{ start, end }]`.
 4. Pour chaque trou : `computeInterval(trou, params)` → 1 ligne = 1 intervalle
    = 1 montant.

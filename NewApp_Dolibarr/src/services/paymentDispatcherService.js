@@ -125,3 +125,62 @@ export function buildRecap(results = []) {
     solde    : round2(u.totalDue - u.totalPaid) <= 0
   }))
 }
+
+//ALEA_5
+/**
+ * Plan de paiement au pourcentage pour un ensemble de croisements
+ * (une ligne « Mois & Année » ou une colonne « Salarié » du tableau croisé).
+ *
+ * Le pourcentage s'applique AU PRORATA sur le reste de chaque salaire : à 30 %,
+ * chaque salaire non soldé reçoit 30 % de son propre reste. Le dernier salaire
+ * absorbe l'écart d'arrondi pour que la somme payée corresponde exactement au
+ * montant annoncé à l'utilisateur.
+ *
+ * @param {Object} p
+ * @param {Array} p.cells     croisements (cellsOfPeriod / cellsOfEmployee)
+ * @param {number} p.percent  0 -> 100
+ * @param {Array} p.employees
+ * @returns {{percent, totalRest, target, plan, totalPaid}}
+ * plan[i] = {salaryId, userId, name, job, datesp, dateep, amount,
+ * resteBefore, payment, resteAfter, partial, funded}
+ */
+
+export function buildPercentPlan({ cells = [], percent = 0, employees = []}) {
+  const pct = Math.min(Math.max(Number(percent) || 0, 0), 100)
+  const nameById = new Map(employees.map(e => [String(e.id), e.name]))
+  const jobById = new Map(employees.map(e => [String(e.id), e.job]))
+  const lines = cells
+    .flatMap(c => c.lines || [])
+    .filter(s => round2(s.reste) > 0)
+    .sort((a, b) => (a.datesp || 0) - (b.datesp || 0))
+  const totalRest = round2(lines.reduce((s, l) => s + round2(l.reste), 0))
+  const target = round2(totalRest * pct / 100)
+  const plan = []
+  let allocated = 0
+
+  lines.forEach((s, i) => {
+    const reste = round2(s.reste)
+    const last = i === lines.length - 1
+
+    // Le dernier salaire reçoit le solde du montant cible (plafonné à son reste).
+    const raw = last ? round2(target - allocated) : round2(reste * pct / 100)
+    const pay = round2(Math.min(Math.max(raw, 0), reste))
+
+    allocated = round2(allocated + pay)
+    plan.push({
+      salaryId    : s.id,
+      userId      : s.fk_user,
+      name        : nameById.get(String(s.fk_user)) || `#${s.fk_user}`,
+      job         : jobById.get(String(s.fk_user)) || null,
+      datesp      : s.datesp,
+      dateep      : s.dateep,
+      amount      : round2(s.amount),
+      resteBefore : reste,
+      payment     : pay,
+      resteAfter  : round2(reste - pay),
+      partial     : pay > 0 && pay < reste,
+      funded      : pay > 0
+    })
+  })
+  return { percent: pct, totalRest, target, plan, totalPaid: allocated }
+}
