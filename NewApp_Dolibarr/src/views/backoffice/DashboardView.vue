@@ -61,7 +61,7 @@ function logout() {
         <div>
           <p class="eyebrow">Dashboard</p>
           <h1>Statistiques des salaires</h1>
-          <p>Montant par genre et par mois (date de règlement comme référence).</p>
+          <p>Montant de salaire par genre et par mois (date de début comme référence).</p>
         </div>
         <div class="head-actions">
           <button class="refresh-button" :disabled="loading" @click="loadStats">
@@ -91,7 +91,7 @@ function logout() {
           <article class="stat-card">
             <span class="stat-title">Mois couverts</span>
             <strong>{{ stats.byMonth.length }}</strong>
-            <p>Mois distincts avec au moins un règlement.</p>
+            <p>Mois distincts avec au moins un salaire.</p>
           </article>
         </div>
 
@@ -122,14 +122,18 @@ function logout() {
             </div>
             <span class="gender-amount">{{ formatMoney(stats.byGender.unknown) }}</span>
           </div>
+
+          <p class="panel-total">
+            Total général : <strong>{{ formatMoney(stats.totalAmount) }}</strong>
+          </p>
         </article>
 
         <!-- ── Montant par mois ──────────────────────────────── -->
         <article class="panel">
-          <h2>📅 Montant réglé par mois</h2>
+          <h2>📅 Montant de salaire par mois (date de début)</h2>
 
           <p v-if="stats.byMonth.length === 0" class="empty">
-            Aucun règlement enregistré pour le moment.
+            Aucun salaire enregistré pour le moment.
           </p>
 
           <div v-for="m in stats.byMonth" :key="m.month" class="month-row">
@@ -139,6 +143,10 @@ function logout() {
             </div>
             <span class="month-amount">{{ formatMoney(m.total) }}</span>
           </div>
+
+          <p v-if="stats.byMonth.length" class="panel-total">
+            Total général : <strong>{{ formatMoney(stats.totalAmount) }}</strong>
+          </p>
         </article>
       </template>
     </section>
@@ -325,6 +333,19 @@ function logout() {
   font-weight: 700;
   color: #0f172a;
   font-size: 0.9rem;
+}
+
+.panel-total {
+  margin: 1.25rem 0 0;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.24);
+  text-align: right;
+  color: #475569;
+}
+
+.panel-total strong {
+  color: #0f172a;
+  font-size: 1.1rem;
 }
 
 @media (max-width: 920px) {

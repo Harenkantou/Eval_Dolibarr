@@ -2,19 +2,16 @@
 // ─────────────────────────────────────────────────────────────
 // Statistiques du Dashboard BackOffice (énoncé J1 — point 1.d) :
 //   → le montant de salaire par GENRE
-//   → le montant de salaire par MOIS (date de règlement comme référence)
+//   → le montant de salaire par MOIS
+//
+// Les deux graphiques mesurent la MÊME chose : le montant du salaire
+// (`salary.amount`). Seul l'axe de regroupement change (genre / mois).
+// Le mois de référence est celui de la DATE DE DÉBUT du salaire (`datesp`),
+// si bien que la somme des mois retombe toujours sur le montant total.
 //
 // Communication 100% via API Dolibarr :
 //   → GET /users     (pour récupérer le genre de chaque employé)
-//   → GET /salaries  (pour récupérer les salaires + montants réglés)
-//
-// ⚠️ Particularité du projet :
-//   Les paiements ne sont PAS stockés comme paiements Dolibarr réels
-//   (le champ `datep` est vide, l'endpoint /salaries/{id}/payments = 404).
-//   Le détail des règlements est encodé dans le `label` du salaire par
-//   importService.createSalary(), au format :
-//       "... (JJ/MM/AAAA: 480€ | JJ/MM/AAAA: 300€)"
-//   On parse donc le label pour retrouver la date de règlement.
+//   → GET /salaries  (pour récupérer les salaires)
 // ─────────────────────────────────────────────────────────────
 import http from './http'
 
@@ -28,31 +25,22 @@ const errMsg = (err) =>
   err.message
 
 /**
- * Extrait les règlements encodés dans le label d'un salaire.
- *
- * Cherche tous les motifs "JJ/MM/AAAA: montant" (le symbole € est ignoré
- * pour éviter les soucis d'encodage). Les dates de la période
- * ("du 01/03/2026 au 08/03/2026") ne matchent pas car elles ne sont
- * jamais suivies de ": montant".
- *
- * @param  {string} label
- * @returns {Array<{ month: string, date: Date, amount: number }>}
- *          month au format "AAAA-MM" (triable).
+ * « Snap » d'un timestamp Dolibarr au minuit UTC le plus proche.
+ * Dolibarr stocke minuit dans SON fuseau (UTC+1) et nous le renvoie décalé
+ * de -1h : le salaire du 01/03 arrive à 2026-02-28T23:00Z. Sans correction,
+ * getUTCMonth() le classerait en février. (Même helper que api/dolibarr.js.)
  */
-export const extractPayments = (label = '') => {
-  const regex = /(\d{2})\/(\d{2})\/(\d{4})\s*:\s*([\d.,]+)/g
-  const payments = []
+const snapDay = (ts) => Math.round(Number(ts) / 86400) * 86400
 
-  for (const [, day, month, year, rawAmount] of label.matchAll(regex)) {
-    const amount = parseFloat(rawAmount.replace(',', '.')) || 0
-    payments.push({
-      month : `${year}-${month}`,
-      date  : new Date(`${year}-${month}-${day}`),
-      amount
-    })
-  }
-
-  return payments
+/**
+ * Timestamp Dolibarr → clé de mois triable "AAAA-MM".
+ * @returns {string|null} null si la date est absente.
+ */
+const monthKey = (ts) => {
+  if (ts == null || ts === '') return null
+  const d = new Date(snapDay(ts) * 1000)
+  if (Number.isNaN(d.getTime())) return null
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
 }
 
 // ═════════════════════════════════════════════════════════════
@@ -115,8 +103,10 @@ export const salaryByGender = (salaries, usersById) => {
 }
 
 /**
- * Montant de salaire RÉGLÉ par mois (date de règlement comme référence).
- * Additionne chaque paiement dans le mois où il a été réglé.
+ * Montant total de salaire par mois.
+ * Chaque salaire est rattaché au mois de sa DATE DE DÉBUT (`datesp`) et
+ * compte pour son montant dû (`amount`) — un salaire n'est donc jamais
+ * scindé entre deux mois, et la somme des mois = montant total.
  *
  * @param  {Object[]} salaries - salaires bruts de l'API
  * @returns {Array<{ month: string, label: string, total: number }>}
@@ -126,9 +116,9 @@ export const salaryByMonth = (salaries) => {
   const byMonth = {}
 
   for (const s of salaries) {
-    for (const p of extractPayments(s.label)) {
-      byMonth[p.month] = (byMonth[p.month] || 0) + p.amount
-    }
+    const key = monthKey(s.datesp)
+    if (!key) continue                       // salaire sans date de début : ignoré
+    byMonth[key] = (byMonth[key] || 0) + (parseFloat(s.amount) || 0)
   }
 
   const MOIS = ['Janv', 'Févr', 'Mars', 'Avr', 'Mai', 'Juin',
